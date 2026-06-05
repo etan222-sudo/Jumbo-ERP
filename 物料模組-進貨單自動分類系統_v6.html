@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>進貨單自動分類系統 v4</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #f0f4f8;
+            --surface: #ffffff;
+            --surface2: #f5f7fa;
+            --border: #d6dce6;
+            --border2: #c2cad8;
+            --accent: #1d6fd8;
+            --accent2: #5a3fc0;
+            --green: #1a9e6b;
+            --orange: #d4620a;
+            --purple: #7c3dbf;
+            --yellow: #b07b00;
+            --red: #c0392b;
+            --text: #1a1f2e;
+            --text2: #4a5568;
+            --text3: #8896aa;
+            --shadow: 0 2px 12px rgba(0,0,0,0.08);
+            --shadow2: 0 4px 20px rgba(0,0,0,0.12);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            font-size: 18px;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 32px 20px 80px;
+            line-height: 1.6;
+        }
+
+        /* Topbar */
+        .topbar {
+            max-width: 1200px;
+            margin: 0 auto 28px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .logo-mark {
+            width: 46px; height: 46px;
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 22px; flex-shrink: 0;
+            box-shadow: 0 3px 10px rgba(29,111,216,0.3);
+        }
+        .topbar h1 {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text);
+            letter-spacing: .01em;
+        }
+        .ver-tag {
+            font-size: 12px;
+            color: var(--accent);
+            background: rgba(29,111,216,.1);
+            border: 1px solid rgba(29,111,216,.25);
+            border-radius: 20px;
+            padding: 2px 10px;
+            margin-left: 10px;
+            font-weight: 700;
+        }
+
+        .main { max-width: 1200px; margin: 0 auto; display: grid; gap: 20px; }
+
+        /* Cards */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 26px 30px;
+            box-shadow: var(--shadow);
+        }
+        .card-title {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            color: var(--text3);
+            margin-bottom: 18px;
+        }
+
+        /* Rule grid */
+        .rule-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 12px;
+        }
+        .rule-item {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 16px;
+            position: relative;
+            overflow: hidden;
+        }
+        .rule-item::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 4px;
+            border-radius: 4px 0 0 4px;
+        }
+        .rule-item.p1::before { background: var(--accent); }
+        .rule-item.p2::before { background: var(--green); }
+        .rule-item.p3::before { background: var(--orange); }
+        .rule-item.p4::before { background: var(--purple); }
+        .rule-item.p5::before { background: var(--text3); }
+
+        .rule-badge {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .08em;
+            padding: 2px 8px;
+            border-radius: 4px;
+            margin-bottom: 7px;
+        }
+        .p1 .rule-badge { background: rgba(29,111,216,.12); color: var(--accent); }
+        .p2 .rule-badge { background: rgba(26,158,107,.12); color: var(--green); }
+        .p3 .rule-badge { background: rgba(212,98,10,.12); color: var(--orange); }
+        .p4 .rule-badge { background: rgba(124,61,191,.12); color: var(--purple); }
+        .p5 .rule-badge { background: rgba(136,150,170,.15); color: var(--text2); }
+
+        .rule-name {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 6px;
+            color: var(--text);
+        }
+        .rule-keys {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            color: var(--text2);
+            line-height: 1.8;
+        }
+
+        /* Tab */
+        .tab-row { display: flex; gap: 8px; margin-bottom: 20px; }
+        .tab-btn {
+            padding: 9px 20px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 700;
+            border: 1.5px solid var(--border2);
+            background: var(--surface2);
+            color: var(--text2);
+            cursor: pointer;
+            transition: all .2s;
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+        .tab-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+            box-shadow: 0 3px 10px rgba(29,111,216,.3);
+        }
+        .tab-panel { display: none; }
+        .tab-panel.active { display: block; }
+
+        /* Drop zone */
+        .drop-zone {
+            border: 2px dashed var(--border2);
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all .25s;
+            position: relative;
+            background: var(--surface2);
+        }
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--accent);
+            background: rgba(29,111,216,.04);
+        }
+        .drop-zone input[type=file] {
+            position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+        }
+        .drop-icon { font-size: 38px; margin-bottom: 12px; }
+        .drop-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; color: var(--text); }
+        .drop-sub { font-size: 15px; color: var(--text2); }
+        .drop-sub span { color: var(--accent); font-weight: 700; }
+
+        /* Sheet config */
+        .sheet-row {
+            display: flex; align-items: center; gap: 12px;
+            margin-top: 16px; flex-wrap: wrap;
+        }
+        .sheet-row label { font-size: 16px; color: var(--text2); font-weight: 500; }
+        select {
+            background: var(--surface);
+            border: 1.5px solid var(--border2);
+            color: var(--text);
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 16px;
+            outline: none;
+            font-family: 'Noto Sans TC', sans-serif;
+            cursor: pointer;
+        }
+        select:focus { border-color: var(--accent); }
+
+        .col-config {
+            display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+            background: #f0f6ff;
+            border: 1px solid #c2d8f5;
+            border-radius: 10px;
+            padding: 12px 18px;
+            margin-top: 12px;
+        }
+        .col-config label { font-size: 16px; color: var(--text2); }
+        .col-config input[type=text] {
+            width: 72px;
+            background: #fff;
+            border: 1.5px solid var(--border2);
+            color: var(--text);
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 16px;
+            text-align: center;
+            outline: none;
+        }
+        .col-config input[type=text]:focus { border-color: var(--accent); }
+        .col-info { font-size: 13px; color: var(--text3); }
+
+        /* File loaded */
+        .file-loaded {
+            display: flex; align-items: center; gap: 14px;
+            background: #f0faf6;
+            border: 1px solid #a8dfc9;
+            border-radius: 10px;
+            padding: 14px 18px;
+            margin-top: 14px;
+        }
+        .file-loaded .fi-icon { font-size: 22px; }
+        .fi-name { font-size: 16px; font-weight: 700; color: var(--text); }
+        .fi-meta { font-size: 13px; color: var(--text2); margin-top: 2px; }
+        .fi-close {
+            margin-left: auto; background: none; border: none; color: var(--text3);
+            cursor: pointer; font-size: 20px; line-height: 1; padding: 4px;
+        }
+        .fi-close:hover { color: var(--red); }
+
+        /* Textarea */
+        textarea {
+            width: 100%; height: 200px;
+            background: var(--surface2);
+            border: 1.5px solid var(--border2);
+            border-radius: 10px;
+            color: var(--text);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 16px;
+            padding: 14px 18px;
+            resize: vertical; outline: none;
+            transition: border-color .2s;
+            line-height: 1.7;
+        }
+        textarea:focus { border-color: var(--accent); }
+        textarea::placeholder { color: var(--text3); }
+        .input-label { font-size: 16px; color: var(--text2); margin-bottom: 10px; line-height: 1.6; }
+        .input-label strong { color: var(--text); }
+
+        /* Buttons */
+        .action-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 22px; }
+        .btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 12px 26px; border-radius: 9px;
+            font-size: 16px; font-weight: 700;
+            cursor: pointer; border: none;
+            transition: all .2s;
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent2));
+            color: #fff;
+            box-shadow: 0 4px 14px rgba(29,111,216,.35);
+        }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(29,111,216,.45); }
+        .btn-primary:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+        .btn-green {
+            background: #edf9f4;
+            color: var(--green);
+            border: 1.5px solid #a3d9c2;
+        }
+        .btn-green:hover { background: #d5f2e8; }
+        .btn-green:disabled { opacity: .4; cursor: not-allowed; }
+        .btn-secondary {
+            background: var(--surface2);
+            color: var(--text2);
+            border: 1.5px solid var(--border2);
+        }
+        .btn-secondary:hover { color: var(--text); border-color: var(--text3); background: #eaedf2; }
+        .stat-pill {
+            margin-left: auto;
+            font-size: 15px; color: var(--text2);
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            padding: 7px 16px;
+            border-radius: 20px;
+        }
+        .stat-pill strong { color: var(--accent); }
+
+        /* Result table */
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        thead tr { border-bottom: 2px solid var(--border); }
+        th {
+            font-size: 13px; font-weight: 700; letter-spacing: .1em;
+            text-transform: uppercase; color: var(--text3);
+            padding: 10px 16px; text-align: left; white-space: nowrap;
+            background: var(--surface2);
+        }
+        td {
+            padding: 12px 16px; font-size: 16px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #f7f9fc; }
+        td:first-child {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--text3); font-size: 14px;
+            width: 55px; text-align: center;
+        }
+        td.note-cell {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px; color: var(--text2);
+            max-width: 440px;
+        }
+
+        /* Category badges */
+        .cat-badge {
+            display: inline-flex; align-items: center; gap: 7px;
+            padding: 5px 13px; border-radius: 7px;
+            font-size: 15px; font-weight: 700; white-space: nowrap;
+        }
+        .cat-badge::before {
+            content: ''; width: 7px; height: 7px;
+            border-radius: 50%; flex-shrink: 0;
+        }
+        .cat-plan    { background: rgba(29,111,216,.1); color: var(--accent); border: 1px solid rgba(29,111,216,.2); }
+        .cat-plan::before { background: var(--accent); }
+        .cat-retail  { background: rgba(26,158,107,.1); color: var(--green); border: 1px solid rgba(26,158,107,.2); }
+        .cat-retail::before { background: var(--green); }
+        .cat-long    { background: rgba(212,98,10,.1); color: var(--orange); border: 1px solid rgba(212,98,10,.2); }
+        .cat-long::before { background: var(--orange); }
+        .cat-gen4    { background: rgba(124,61,191,.1); color: var(--purple); border: 1px solid rgba(124,61,191,.2); }
+        .cat-gen4::before { background: var(--purple); }
+        .cat-other   { background: rgba(136,150,170,.12); color: var(--text2); border: 1px solid var(--border); }
+        .cat-other::before { background: var(--text3); }
+        .cat-pending { background: rgba(176,123,0,.08); color: var(--yellow); border: 1px solid rgba(176,123,0,.2); }
+        .cat-pending::before { background: var(--yellow); }
+
+        /* Summary */
+        .summary-row {
+            display: flex; flex-wrap: wrap; gap: 14px;
+            padding-top: 18px; border-top: 1px solid var(--border); margin-top: 6px;
+        }
+        .sum-item { font-size: 15px; display: flex; align-items: center; gap: 7px; }
+        .sum-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+        .sum-label { color: var(--text2); }
+        .sum-count { font-weight: 700; color: var(--text); }
+
+        /* Empty */
+        .empty-state { text-align: center; padding: 52px 20px; color: var(--text3); }
+        .empty-icon { font-size: 40px; margin-bottom: 14px; }
+        .empty-state p { font-size: 17px; }
+
+        /* Toast */
+        .toast {
+            position: fixed; bottom: 28px; right: 28px;
+            font-weight: 700; font-size: 15px;
+            padding: 12px 22px; border-radius: 10px;
+            opacity: 0; transform: translateY(8px);
+            transition: all .3s; pointer-events: none; z-index: 999;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+        }
+        .toast.show { opacity: 1; transform: translateY(0); }
+        .toast.success { background: #1a9e6b; color: #fff; }
+        .toast.warn { background: #f0b429; color: #3a2600; }
+    </style>
+</head>
+<body>
+
+<div class="topbar">
+    <div class="logo-mark">📦</div>
+    <div>
+        <h1>進貨單自動分類系統<span class="ver-tag">v4.0</span></h1>
+    </div>
+</div>
+
+<div class="main">
+
+    <!-- 規則說明 -->
+    <div class="card">
+        <div class="card-title">優先分類規則</div>
+        <div class="rule-grid">
+            <div class="rule-item p1">
+                <div class="rule-badge">P1 · 最高優先</div>
+                <div class="rule-name">計畫性生產</div>
+                <div class="rule-keys">MP · D27 · S27 · P43<br>SB · RL · 雙路 · 一路發<br>S主機 · 公規桌 · ARK</div>
+            </div>
+            <div class="rule-item p2">
+                <div class="rule-badge">P2</div>
+                <div class="rule-name">零售整場</div>
+                <div class="rule-keys">東昇 · 剛州 · 零售 · 整場<br>TC · ML · GL · 菲<br>＋客戶代碼（34個）</div>
+            </div>
+            <div class="rule-item p3">
+                <div class="rule-badge">P3</div>
+                <div class="rule-name">長交期備料</div>
+                <div class="rule-keys">長交期<br>※ 零售＋長交期 → 長交期</div>
+            </div>
+            <div class="rule-item p4">
+                <div class="rule-badge">P4</div>
+                <div class="rule-name">四代機</div>
+                <div class="rule-keys">Apollo · 四代機</div>
+            </div>
+            <div class="rule-item p5">
+                <div class="rule-badge">P5</div>
+                <div class="rule-name">其他</div>
+                <div class="rule-keys">耗材 · 測試 · 研發<br>備庫存 · 重工<br>展 · 展覽 · G2E · Sigma<br>free · 贈 · lastbuy · 漲價</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 輸入區 -->
+    <div class="card">
+        <div class="card-title">輸入方式</div>
+
+        <div class="tab-row">
+            <button class="tab-btn active" onclick="switchTab('excel', this)">📂 上傳 Excel 檔案</button>
+            <button class="tab-btn" onclick="switchTab('text', this)">📋 貼上文字</button>
+        </div>
+
+        <!-- Excel 上傳 -->
+        <div class="tab-panel active" id="tab-excel">
+            <div class="drop-zone" id="dropZone"
+                ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+                <input type="file" accept=".xlsx,.xls,.csv" onchange="onFileSelect(event)" id="fileInput">
+                <div class="drop-icon">📊</div>
+                <div class="drop-title">拖曳 Excel 至此，或點擊選擇</div>
+                <div class="drop-sub">支援 <span>.xlsx</span> · <span>.xls</span> · <span>.csv</span></div>
+            </div>
+
+            <div id="fileInfo" style="display:none" class="file-loaded">
+                <div class="fi-icon">📗</div>
+                <div>
+                    <div class="fi-name" id="fiName"></div>
+                    <div class="fi-meta" id="fiMeta"></div>
+                </div>
+                <button class="fi-close" onclick="clearFile()" title="移除">✕</button>
+            </div>
+
+            <div id="sheetSection" style="display:none">
+                <div class="sheet-row">
+                    <label>選擇工作表：</label>
+                    <select id="sheetSelect" onchange="onSheetChange()"></select>
+                    <span id="sheetInfo" class="col-info"></span>
+                </div>
+                <div class="col-config">
+                    <label>備註欄 (AB 欄)：</label>
+                    <input type="text" id="abCol" value="AB" maxlength="3" oninput="this.value=this.value.toUpperCase()">
+                    <label style="margin-left:14px">品號欄 (H 欄)：</label>
+                    <input type="text" id="itemCol" value="H" maxlength="3" oninput="this.value=this.value.toUpperCase()">
+                    <label style="margin-left:14px">輸出欄 (AF 欄)：</label>
+                    <input type="text" id="agCol" value="AF" maxlength="3" oninput="this.value=this.value.toUpperCase()">
+                    <span class="col-info">（可依實際欄位字母調整）</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 文字貼上 -->
+        <div class="tab-panel" id="tab-text">
+            <p class="input-label">請將 Excel <strong>AB 欄（請購備註）</strong>整欄複製貼上，每列一筆：</p>
+            <textarea id="inputText" placeholder="例：&#10;MP D27 雙路 x50&#10;東昇零售整場&#10;長交期料件&#10;Apollo 四代機&#10;G2E展覽&#10;OKADA"></textarea>
+        </div>
+
+        <div class="action-row">
+            <button class="btn btn-primary" onclick="processData()">▶ 開始分類</button>
+            <button class="btn btn-green" onclick="downloadExcel()" id="btnDownload" disabled>⬇ 下載含結果的 Excel</button>
+            <button class="btn btn-secondary" onclick="copyResults()">複製 AF 欄</button>
+            <button class="btn btn-secondary" onclick="clearAll()">清除</button>
+            <div class="stat-pill" id="statPill">共 <strong>0</strong> 筆</div>
+        </div>
+    </div>
+
+    <!-- 結果 -->
+    <div class="card">
+        <div class="card-title">分類結果預覽</div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>原始備註 (AB 欄)</th>
+                        <th>分類結果 (AF 欄)</th>
+                    </tr>
+                </thead>
+                <tbody id="resultBody">
+                    <tr><td colspan="3">
+                        <div class="empty-state">
+                            <div class="empty-icon">📋</div>
+                            <p>上傳 Excel 或貼上備註後，按「開始分類」</p>
+                        </div>
+                    </td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="summary-row" id="summaryRow" style="display:none"></div>
+    </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== 關鍵字定義 =====
+const K_PLAN   = ["MP", "D27", "S27", "P43", "SB", "RL", "雙路", "一路發", "S主機", "公規桌", "ARK"];
+const K_RETAIL_KW = ["東昇", "剛州", "零售", "整場", "TC", "ML", "GL", "菲"];
+
+// 客戶代碼清單（完整34筆）
+const K_CUSTOMER = [
+    "Ace", "PGI", "APE", "HG", "James Industries", "SG", "NagaWorld", "GEC", "JST",
+    "MARINA SQUARE", "WIDUS", "Resort World Manila", "Universal Hotels and Resorts",
+    "OKADA", "Gaming Arts", "SOLAIR NORTH", "SOLAIR", "SOLAIREN",
+    "Hann Philippines Inc.", "DNA SV", "Blue Chip", "COD MANILA", "LaVie Resort and Casino",
+    "Newport", "Casino Plus", "IGO", "Pinostar", "Play Park",
+    "New Coast Leisure Inc.", "Westside City Resorts World", "Brittany", "Vertex",
+    "韓國", "澳門"
+];
+
+const K_GEN4   = ["Apollo", "四代機"];
+
+// 其他：原有 + 新增展覽類
+const K_OTHER  = [
+    "耗材", "測試", "研發", "備庫存", "重工",
+    "展覽", "展", "G2E", "Sigma", "free", "贈", "lastbuy", "漲價"
+];
+
+// ===== 分類邏輯 =====
+function classify(text) {
+    if (!text || String(text).trim() === "") return "待分類";
+    const val = String(text).trim();
+
+    const hasLong   = val.includes("長交期");
+    const hasPlan   = K_PLAN.some(k => val.includes(k));
+    const hasRetailKw = K_RETAIL_KW.some(k => val.includes(k));
+    const hasCustomer = K_CUSTOMER.some(k => val.includes(k));
+    const hasRetail = hasRetailKw || hasCustomer;
+    const hasGen4   = K_GEN4.some(k => val.includes(k));
+    // 其他：「展」單字需特別處理，避免誤判「整場」等含展的詞
+    const hasOther  = K_OTHER.some(k => {
+        if (k === "展") {
+            // 只有整個詞是「展」或前後無其他中文字時才算
+            return /(?<![^\s,，、。；;\/])展(?![覽覽])/.test(val) || val === "展" || val.startsWith("展 ") || val.endsWith(" 展");
+        }
+        return val.includes(k);
+    });
+
+    // P1：計畫性生產（最高優先）
+    if (hasPlan) return "計畫性生產";
+
+    // P2：零售整場（單獨零售，無長交期）
+    if (hasRetail && !hasLong) return "零售整場";
+
+    // P3：長交期備料（含 零售+長交期 同時出現 → 長交期優先）
+    if (hasLong) return "長交期備料";
+
+    // 保底：零售
+    if (hasRetail) return "零售整場";
+
+    // P4：四代機
+    if (hasGen4) return "四代機";
+
+    // P5：其他
+    if (hasOther) return "其他";
+
+    return "待分類";
+}
+
+const catConfig = {
+    "計畫性生產": { cls: "cat-plan",    dot: "#1d6fd8" },
+    "零售整場":   { cls: "cat-retail",  dot: "#1a9e6b" },
+    "長交期備料": { cls: "cat-long",    dot: "#d4620a" },
+    "四代機":     { cls: "cat-gen4",    dot: "#7c3dbf" },
+    "其他":       { cls: "cat-other",   dot: "#8896aa" },
+    "待分類":     { cls: "cat-pending", dot: "#b07b00" },
+};
+
+// ===== 狀態 =====
+let currentTab = "excel";
+let workbook = null;
+let sheetData = [];
+let lastResults = [];
+let originalFileName = "";
+let originalArrayBuffer = null;
+
+// ===== Tab =====
+function switchTab(tab, btn) {
+    currentTab = tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + tab).classList.add('active');
+}
+
+// ===== Excel 上傳 =====
+function onDragOver(e) { e.preventDefault(); document.getElementById('dropZone').classList.add('dragover'); }
+function onDragLeave(e) { document.getElementById('dropZone').classList.remove('dragover'); }
+function onDrop(e) {
+    e.preventDefault();
+    document.getElementById('dropZone').classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) loadExcelFile(file);
+}
+function onFileSelect(e) {
+    const file = e.target.files[0];
+    if (file) loadExcelFile(file);
+}
+function loadExcelFile(file) {
+    originalFileName = file.name;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        originalArrayBuffer = e.target.result.slice(0); // 保留原始 ArrayBuffer 供 ExcelJS 使用
+        const data = new Uint8Array(e.target.result);
+        workbook = XLSX.read(data, { type: 'array' });
+        document.getElementById('dropZone').style.display = 'none';
+        const fi = document.getElementById('fileInfo');
+        fi.style.display = 'flex';
+        document.getElementById('fiName').textContent = file.name;
+        document.getElementById('fiMeta').textContent =
+            `${(file.size/1024).toFixed(1)} KB · ${workbook.SheetNames.length} 個工作表`;
+        const sel = document.getElementById('sheetSelect');
+        sel.innerHTML = '';
+        workbook.SheetNames.forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name; opt.textContent = name;
+            sel.appendChild(opt);
+        });
+        document.getElementById('sheetSection').style.display = 'block';
+        onSheetChange();
+    };
+    reader.readAsArrayBuffer(file);
+}
+function onSheetChange() {
+    if (!workbook) return;
+    const sheetName = document.getElementById('sheetSelect').value;
+    const ws = workbook.Sheets[sheetName];
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
+    document.getElementById('sheetInfo').textContent = `${range.e.r - range.s.r + 1} 列`;
+}
+function clearFile() {
+    workbook = null; originalFileName = ""; originalArrayBuffer = null;
+    document.getElementById('dropZone').style.display = 'block';
+    document.getElementById('fileInfo').style.display = 'none';
+    document.getElementById('sheetSection').style.display = 'none';
+    document.getElementById('fileInput').value = '';
+}
+
+// ===== 欄位字母轉 index =====
+function colLetterToIndex(str) {
+    str = str.toUpperCase().trim();
+    let idx = 0;
+    for (let i = 0; i < str.length; i++) idx = idx * 26 + (str.charCodeAt(i) - 64);
+    return idx - 1;
+}
+
+// ===== 主分類 =====
+function processData() {
+    if (currentTab === "excel") processExcel();
+    else processText();
+}
+function processExcel() {
+    if (!workbook) { showToast("請先上傳 Excel 檔案", "warn"); return; }
+    const sheetName = document.getElementById('sheetSelect').value;
+    const ws = workbook.Sheets[sheetName];
+    const abColIdx  = colLetterToIndex(document.getElementById('abCol').value   || "AB");
+    const itemColIdx= colLetterToIndex(document.getElementById('itemCol').value || "H");
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1:A1');
+    sheetData = []; lastResults = [];
+
+    // 第 5 列起 (rowIdx=4) 才開始分類；第 1-4 列維持原樣
+    for (let r = 4; r <= range.e.r; r++) {
+        // 取品號欄
+        const itemCell = ws[XLSX.utils.encode_cell({ r, c: itemColIdx })];
+        const itemVal  = itemCell ? String(itemCell.v ?? '').trim() : '';
+
+        // 過濾：品號為空 或 品號為 7777/9999 整行跳過
+        if (itemVal === '' || itemVal === '7777' || itemVal === '9999') continue;
+
+        const abCell = ws[XLSX.utils.encode_cell({ r, c: abColIdx })];
+        const val    = abCell ? String(abCell.v ?? '') : '';
+        const result = classify(val);
+        sheetData.push({ rowIdx: r, abVal: val, result });
+        lastResults.push(result);
+    }
+    renderTable(sheetData.map(d => d.abVal), lastResults);
+    document.getElementById('btnDownload').disabled = false;
+}
+function processText() {
+    const input = document.getElementById("inputText").value;
+    const lines = input.split('\n');
+    const data = lines[lines.length-1]?.trim() === "" ? lines.slice(0,-1) : lines;
+    lastResults = data.map(classify);
+    sheetData = data.map((v, i) => ({ rowIdx: i, abVal: v, result: lastResults[i] }));
+    renderTable(data, lastResults);
+    document.getElementById('btnDownload').disabled = true;
+}
+
+// ===== 渲染表格 =====
+function renderTable(abVals, results) {
+    const tbody = document.getElementById("resultBody");
+    tbody.innerHTML = "";
+    const counts = {};
+    abVals.forEach((line, i) => {
+        const result = results[i];
+        counts[result] = (counts[result] || 0) + 1;
+        const cfg = catConfig[result] || catConfig["待分類"];
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${i + 1}</td>
+            <td class="note-cell">${escapeHtml(String(line)) || '<span style="color:var(--text3)">（空白）</span>'}</td>
+            <td><span class="cat-badge ${cfg.cls}">${result}</span></td>
+        `;
+        tbody.appendChild(row);
+    });
+    document.getElementById("statPill").innerHTML = `共 <strong>${abVals.length}</strong> 筆`;
+    renderSummary(counts);
+}
+function renderSummary(counts) {
+    const row = document.getElementById("summaryRow");
+    const order = ["計畫性生產","零售整場","長交期備料","四代機","其他","待分類"];
+    row.innerHTML = order.filter(k => counts[k]).map(k => {
+        const cfg = catConfig[k];
+        return `<div class="sum-item">
+            <div class="sum-dot" style="background:${cfg.dot}"></div>
+            <span class="sum-label">${k}</span>
+            <span class="sum-count">${counts[k]}</span>
+        </div>`;
+    }).join('');
+    row.style.display = lastResults.length ? 'flex' : 'none';
+}
+
+// ===== 下載 Excel =====
+async function downloadExcel() {
+    if (!workbook || !sheetData.length) { showToast("請先上傳並分類 Excel", "warn"); return; }
+    const sheetName  = document.getElementById('sheetSelect').value;
+    const agColNum   = colLetterToIndex(document.getElementById('agCol').value   || "AF") + 1; // ExcelJS 1-based
+    const abColNum   = colLetterToIndex(document.getElementById('abCol').value   || "AB") + 1;
+    const itemColNum = colLetterToIndex(document.getElementById('itemCol').value || "H")  + 1;
+
+    showToast("⏳ 正在產生 Excel，請稍候…", "success");
+
+    try {
+        const exWb = new ExcelJS.Workbook();
+        await exWb.xlsx.load(originalArrayBuffer);
+        const exWs = exWb.getWorksheet(sheetName) || exWb.worksheets[0];
+
+        // 收集要刪除的行號（品號空白/7777/9999），從後往前刪
+        const rowsToDelete = [];
+        exWs.eachRow((row, rowNum) => {
+            if (rowNum <= 4) return;
+            const iv = row.getCell(itemColNum).value;
+            const itemVal = iv != null ? String(iv).trim() : '';
+            if (itemVal === '' || itemVal === '7777' || itemVal === '9999') rowsToDelete.push(rowNum);
+        });
+        for (let i = rowsToDelete.length - 1; i >= 0; i--) {
+            exWs.spliceRows(rowsToDelete[i], 1);
+        }
+
+        // AF4：標題「分類」黃底黑粗體
+        const hCell = exWs.getRow(4).getCell(agColNum);
+        hCell.value = '分類';
+        hCell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+        hCell.font  = { bold: true, color: { argb: 'FF000000' } };
+        hCell.alignment = { horizontal: 'center', vertical: 'middle' };
+
+        // 第5列起寫入分類結果
+        exWs.eachRow((row, rowNum) => {
+            if (rowNum <= 4) return;
+            const av = row.getCell(abColNum).value;
+            const abVal = av != null ? String(av) : '';
+            row.getCell(agColNum).value = classify(abVal);
+        });
+
+        // 下載
+        const buffer = await exWb.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = originalFileName.replace(/\.(xlsx?|csv)$/i, '') + '_已分類.xlsx';
+        document.body.appendChild(a); a.click();
+        setTimeout(() => { URL.revokeObjectURL(url); document.body.removeChild(a); }, 1000);
+        showToast("✓ Excel 下載成功（含黃底分類標題、已移除7777/9999列）", "success");
+    } catch(err) {
+        console.error(err);
+        showToast("下載失敗：" + err.message, "warn");
+    }
+}
+
+// ===== 複製 =====
+function copyResults() {
+    if (!lastResults.length) { showToast("請先執行分類", "warn"); return; }
+    navigator.clipboard.writeText(lastResults.join('\n'))
+        .then(() => showToast("✓ 已複製 AF 欄結果", "success"));
+}
+
+// ===== 清除 =====
+function clearAll() {
+    lastResults = []; sheetData = [];
+    document.getElementById("inputText").value = "";
+    document.getElementById("resultBody").innerHTML = `<tr><td colspan="3">
+        <div class="empty-state"><div class="empty-icon">📋</div>
+        <p>上傳 Excel 或貼上備註後，按「開始分類」</p></div></td></tr>`;
+    document.getElementById("summaryRow").style.display = "none";
+    document.getElementById("statPill").innerHTML = `共 <strong>0</strong> 筆`;
+    document.getElementById('btnDownload').disabled = true;
+    clearFile();
+}
+
+// ===== Toast =====
+function showToast(msg, type = "success") {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.className = `toast ${type} show`;
+    setTimeout(() => t.classList.remove("show"), 2500);
+}
+
+function escapeHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+</body>
+</html>

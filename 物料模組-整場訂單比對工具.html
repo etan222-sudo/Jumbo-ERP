@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>整場訂單自動比對工具</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: #f4f6f9; color: #222; font-size: 14px; }
+  .header { background: #1a3a6b; color: #fff; padding: 18px 28px; display: flex; align-items: center; gap: 14px; }
+  .header h1 { font-size: 18px; font-weight: 700; }
+  .header span { font-size: 12px; opacity: 0.75; margin-top: 2px; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  .upload-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+  .upload-card { background: #fff; border: 1.5px dashed #b0b8c9; border-radius: 10px; padding: 0; text-align: center; cursor: pointer; transition: border-color 0.2s, background 0.2s; overflow: hidden; }
+  .upload-card:hover { border-color: #1a3a6b; background: #f0f4ff; }
+  .upload-card.dragover { border-color: #1a3a6b; background: #e8eeff; border-style: solid; }
+  .upload-card.loaded { border: 1.5px solid #27ae60; background: #f0fff4; }
+  .upload-label { display: block; padding: 20px 16px; cursor: pointer; width: 100%; height: 100%; }
+  .upload-card .icon { font-size: 32px; margin-bottom: 8px; }
+  .upload-card .label { font-weight: 700; font-size: 13px; color: #1a3a6b; margin-bottom: 4px; }
+  .upload-card .sub { font-size: 11px; color: #888; }
+  .upload-card .status { margin-top: 8px; font-size: 12px; font-weight: 600; }
+  .upload-card.loaded .status { color: #27ae60; }
+  .upload-card input[type=file] { display: none; }
+  .action-row { display: flex; gap: 12px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
+  .btn { padding: 10px 22px; border-radius: 7px; border: none; font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.15s, opacity 0.15s; }
+  .btn-primary { background: #1a3a6b; color: #fff; }
+  .btn-primary:hover { background: #12286f; }
+  .btn-primary:disabled { background: #aaa; cursor: not-allowed; }
+  .btn-success { background: #27ae60; color: #fff; }
+  .btn-success:hover { background: #219150; }
+  .btn-success:disabled { background: #aaa; cursor: not-allowed; }
+  .stat-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .stat { background: #fff; border-radius: 8px; padding: 12px 20px; min-width: 130px; border: 1px solid #e0e4ea; }
+  .stat .num { font-size: 26px; font-weight: 700; }
+  .stat .lbl { font-size: 11px; color: #888; margin-top: 2px; }
+  .stat.total .num { color: #1a3a6b; }
+  .stat.matched .num { color: #27ae60; }
+  .stat.unmatched .num { color: #e67e22; }
+  .table-wrap { background: #fff; border-radius: 10px; border: 1px solid #e0e4ea; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th { background: #1a3a6b; color: #fff; padding: 10px 12px; text-align: left; white-space: nowrap; position: sticky; top: 0; z-index: 2; }
+  tbody tr:hover { background: #f5f7fb; }
+  tbody td { padding: 8px 12px; border-bottom: 0.5px solid #eaedf2; white-space: nowrap; }
+  .tag-borrow { background: #dbeafe; color: #1e40af; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700; }
+  .tag-transfer { background: #dcfce7; color: #166534; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700; }
+  .tag-none { background: #fff3cd; color: #856404; border-radius: 4px; padding: 2px 7px; font-size: 11px; }
+  .tag-mismatch { background: #ffe4cc; color: #c05000; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700; }
+  .mismatch-mark { color: #c05000; font-weight: 700; font-size: 12px; }
+  .row-mismatch td:nth-child(13) { background: #fff0e0; }
+  .row-mismatch td:nth-child(14) { background: #fff0e0; }
+  .v-mark { color: #27ae60; font-weight: 900; font-size: 15px; }
+  .row-matched td { }
+  .row-unmatched td:nth-child(13), .row-unmatched td:nth-child(14) { background: #fffde7; }
+  .filter-row { display: flex; gap: 10px; margin-bottom: 14px; align-items: center; flex-wrap: wrap; }
+  .filter-row select, .filter-row input { padding: 7px 10px; border: 1px solid #cdd2da; border-radius: 6px; font-size: 13px; background: #fff; }
+  .filter-row label { font-size: 12px; color: #555; }
+  .empty-msg { text-align: center; padding: 40px; color: #aaa; font-size: 15px; }
+  .note { font-size: 11px; color: #777; margin-top: 6px; }
+  .progress-bar { height: 6px; background: #e0e4ea; border-radius: 3px; margin-bottom: 20px; overflow: hidden; display: none; }
+  .progress-bar .fill { height: 100%; background: #27ae60; border-radius: 3px; transition: width 0.3s; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>📋 整場訂單自動比對工具</h1>
+    <span>上傳三份 Excel，系統自動比對借出單 / 轉撥單，並輸出結果 Excel</span>
+  </div>
+</div>
+
+<div class="container">
+
+  <div class="upload-grid">
+    <div class="upload-card" id="card-order">
+      <label class="upload-label" for="file-order">
+        <div class="icon">📄</div>
+        <div class="label">整場訂單</div>
+        <div class="sub">主比對來源（必填）</div>
+        <div class="status" id="status-order">點擊或拖曳檔案至此</div>
+      </label>
+      <input type="file" id="file-order" accept=".xlsx,.xls" onchange="handleFile('order', this)">
+    </div>
+    <div class="upload-card" id="card-borrow">
+      <label class="upload-label" for="file-borrow">
+        <div class="icon">📤</div>
+        <div class="label">借出單</div>
+        <div class="sub">來源單號 / 品號 / 暫出數量</div>
+        <div class="status" id="status-borrow">點擊或拖曳檔案至此</div>
+      </label>
+      <input type="file" id="file-borrow" accept=".xlsx,.xls" onchange="handleFile('borrow', this)">
+    </div>
+    <div class="upload-card" id="card-transfer">
+      <label class="upload-label" for="file-transfer">
+        <div class="icon">🔄</div>
+        <div class="label">轉撥單</div>
+        <div class="sub">E欄備註 / 品號 / 轉撥數量</div>
+        <div class="status" id="status-transfer">點擊或拖曳檔案至此</div>
+      </label>
+      <input type="file" id="file-transfer" accept=".xlsx,.xls" onchange="handleFile('transfer', this)">
+    </div>
+  </div>
+
+  <div class="action-row">
+    <button class="btn btn-primary" id="btn-match" onclick="runMatch()" disabled>▶ 開始比對</button>
+    <button class="btn btn-success" id="btn-export" onclick="exportExcel()" disabled>⬇ 匯出 Excel</button>
+    <span class="note" id="match-note"></span>
+  </div>
+
+  <div id="debug-info" style="display:none;font-size:11px;color:#666;margin-bottom:8px;padding:6px 10px;background:#f0f0f0;border-radius:5px;"></div>
+  <div class="progress-bar" id="progress-bar"><div class="fill" id="progress-fill" style="width:0%"></div></div>
+
+  <div id="stats-section" style="display:none">
+    <div class="stat-row">
+      <div class="stat total"><div class="num" id="st-total">0</div><div class="lbl">總筆數</div></div>
+      <div class="stat matched"><div class="num" id="st-matched">0</div><div class="lbl">已比對（借出單）</div></div>
+      <div class="stat matched" style="--c:#0f6e56"><div class="num" id="st-transfer" style="color:#0f6e56">0</div><div class="lbl">已比對（轉撥單）</div></div>
+      <div class="stat" style="border:1px solid #e0e4ea"><div class="num" id="st-mismatch" style="color:#e67e22">0</div><div class="lbl">數量不符（待判定）</div></div>
+      <div class="stat unmatched"><div class="num" id="st-unmatched">0</div><div class="lbl">未找到（反黃）</div></div>
+    </div>
+
+    <div class="filter-row">
+      <label>篩選：</label>
+      <select id="filter-type" onchange="renderTable()">
+        <option value="all">全部</option>
+        <option value="borrow">借出單已配對</option>
+        <option value="transfer">轉撥單已配對</option>
+        <option value="mismatch">數量不符（待判定）</option>
+      <option value="none">未找到</option>
+      </select>
+      <input type="text" id="filter-search" placeholder="搜尋訂單單號 / 品號…" oninput="renderTable()" style="width:220px">
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>客戶代號</th>
+            <th>客戶簡稱</th>
+            <th>訂單日期</th>
+            <th>訂單單號</th>
+            <th>客戶單號</th>
+            <th>預交日期</th>
+            <th>品號</th>
+            <th>品名</th>
+            <th>訂單數量</th>
+            <th>單位</th>
+            <th>結案</th>
+            <th>借出單/轉撥單號</th>
+            <th>扣帳</th>
+          </tr>
+        </thead>
+        <tbody id="tbl-body"></tbody>
+      </table>
+      <div class="empty-msg" id="empty-msg" style="display:none">尚無資料，請先執行比對</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const DATA = { order: null, borrow: null, transfer: null };
+const RESULTS = [];
+
+function handleFile(type, input) {
+  const file = input.files[0];
+  if (!file) return;
+  loadFile(type, file);
+}
+
+function loadFile(type, file) {
+  if (!file || !file.name.match(/\.xlsx?$/i)) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+    DATA[type] = wb;
+    const card = document.getElementById('card-' + type);
+    const status = document.getElementById('status-' + type);
+    card.classList.add('loaded');
+    card.classList.remove('dragover');
+    status.textContent = '✔ ' + file.name;
+    checkReady();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function checkReady() {
+  const ready = DATA.order && (DATA.borrow || DATA.transfer);
+  document.getElementById('btn-match').disabled = !ready;
+}
+
+function initDragDrop(cardId, type) {
+  const card = document.getElementById(cardId);
+  card.addEventListener('dragenter', e => { e.preventDefault(); card.classList.add('dragover'); });
+  card.addEventListener('dragover',  e => { e.preventDefault(); card.classList.add('dragover'); });
+  card.addEventListener('dragleave', e => { if (!card.contains(e.relatedTarget)) card.classList.remove('dragover'); });
+  card.addEventListener('drop', e => {
+    e.preventDefault();
+    card.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) loadFile(type, file);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initDragDrop('card-order', 'order');
+  initDragDrop('card-borrow', 'borrow');
+  initDragDrop('card-transfer', 'transfer');
+});
+
+function autoDetectHeader(wb, targetCols) {
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const arr = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  const targets = Array.isArray(targetCols) ? targetCols : [targetCols];
+  for (let i = 0; i < Math.min(10, arr.length); i++) {
+    const rowVals = arr[i].map(c => String(c).trim());
+    if (targets.every(t => rowVals.includes(t))) return i;
+  }
+  return 0;
+}
+
+function readSheet(wb, headerRow) {
+  const ws = wb.Sheets[wb.SheetNames[0]];
+  const arr = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+  const headers = arr[headerRow].map(h => String(h).trim());
+  const rows = arr.slice(headerRow + 1).filter(r => r.some(c => c !== '' && c !== null && c !== undefined));
+  return rows.map(r => {
+    const obj = {};
+    headers.forEach((h, i) => { if (h) obj[h] = r[i] !== undefined ? r[i] : ''; });
+    return obj;
+  });
+}
+
+function extractOrderNum(text) {
+  if (!text) return null;
+  const m = String(text).match(/(\d{3}-\d{11})/);
+  return m ? m[1] : null;
+}
+
+function normalizeNum(v) {
+  const n = parseFloat(v);
+  return isNaN(n) ? null : n;
+}
+
+function runMatch() {
+  RESULTS.length = 0;
+  const pb = document.getElementById('progress-bar');
+  const pf = document.getElementById('progress-fill');
+  pb.style.display = 'block';
+  pf.style.width = '10%';
+
+  const orderHeaderRow = autoDetectHeader(DATA.order, ['訂單單號', '品號']);
+  const orderRows = readSheet(DATA.order, orderHeaderRow);
+  pf.style.width = '30%';
+
+  const borrowLookup = {};
+  const borrowPartial = {};
+  const transferPartial = {};
+  if (DATA.borrow) {
+    // 借出單有重複欄位名（簡稱x3、備註x2），XLSX.js 會覆蓋，改用 index 直接讀
+    const bws = DATA.borrow.Sheets[DATA.borrow.SheetNames[0]];
+    const braw = XLSX.utils.sheet_to_json(bws, { header: 1, defval: '' });
+    const bHeaderRow = autoDetectHeader(DATA.borrow, '異動單號', 4);
+    const bHeaders = braw[bHeaderRow] || [];
+    let bIdxSlip = -1, bIdxSrc = -1, bIdxItem = -1, bIdxQty = -1;
+    bHeaders.forEach((h, i) => {
+      const hh = String(h).trim();
+      if (hh === '異動單號' && bIdxSlip < 0) bIdxSlip = i;
+      if (hh === '來源單號' && bIdxSrc  < 0) bIdxSrc  = i;
+      if (hh === '品號'     && bIdxItem < 0) bIdxItem = i;
+      if (hh === '暫出數量' && bIdxQty  < 0) bIdxQty  = i;
+    });
+    braw.slice(bHeaderRow + 1).forEach(r => {
+      if (!r || !r.some(c => c !== '' && c !== null)) return;
+      const src  = String(r[bIdxSrc]  || '').trim();
+      const item = String(r[bIdxItem] || '').trim();
+      const qty  = normalizeNum(r[bIdxQty]);
+      const slip = String(r[bIdxSlip] || '').trim();
+      if (src && src !== '--' && src !== '' && slip && qty !== null) {
+        borrowLookup[src + '||' + item + '||' + qty] = slip;
+        borrowLookup[src + '||' + item + '||' + Math.round(qty)] = slip;
+        // partial: 來源單號+品號 -> {slip, qty} 供數量不符時使用
+        const pk = src + '||' + item;
+        if (!borrowPartial[pk]) borrowPartial[pk] = [];
+        borrowPartial[pk].push({ slip, qty });
+      }
+    });
+  }
+  pf.style.width = '55%';
+
+  const transferLookup = {};
+  if (DATA.transfer) {
+    // 轉撥單有兩個「備註」欄，XLSX.js sheet_to_json 後者會覆蓋前者
+    // 改用 header:1 原始陣列直接以欄位 index 讀，確保取到第一個備註（E欄）
+    const tws = DATA.transfer.Sheets[DATA.transfer.SheetNames[0]];
+    const traw = XLSX.utils.sheet_to_json(tws, { header: 1, defval: '' });
+    const tHeaderRow = autoDetectHeader(DATA.transfer, '單別-單號', 4);
+    const tHeaders = traw[tHeaderRow] || [];
+    let tIdxSlip = -1, tIdxRemark = -1, tIdxItem = -1, tIdxQty = -1;
+    tHeaders.forEach((h, i) => {
+      const hh = String(h).trim();
+      if (hh === '單別-單號' && tIdxSlip < 0) tIdxSlip = i;
+      if (hh === '備註' && tIdxRemark < 0) tIdxRemark = i; // 只取第一個備註(E欄)
+      if (hh === '品號' && tIdxItem < 0) tIdxItem = i;
+      if (hh === '轉撥數量' && tIdxQty < 0) tIdxQty = i;
+    });
+    traw.slice(tHeaderRow + 1).forEach(r => {
+      if (!r || !r.some(c => c !== '' && c !== null)) return;
+      const base = extractOrderNum(r[tIdxRemark]);
+      const item = String(r[tIdxItem] || '').trim();
+      const qty = normalizeNum(r[tIdxQty]);
+      const slip = String(r[tIdxSlip] || '').trim().replace(/\s+/g, '');
+      if (base && slip && qty !== null) {
+        transferLookup[base + '||' + item + '||' + qty] = slip;
+        transferLookup[base + '||' + item + '||' + Math.round(qty)] = slip;
+        // partial: 訂單基本號+品號 -> {slip, qty}
+        const pk = base + '||' + item;
+        if (!transferPartial[pk]) transferPartial[pk] = [];
+        transferPartial[pk].push({ slip, qty });
+      }
+    });
+  }
+  pf.style.width = '70%';
+
+  orderRows.forEach(row => {
+    const orderNo = String(row['訂單單號'] || '').trim();
+    const parts = orderNo.split('-');
+    const base = parts.length >= 3 ? parts.slice(0, -1).join('-') : orderNo;
+    const item = String(row['品號'] || '').trim();
+    const qty = normalizeNum(row['訂單數量']);
+    let slip = null, mtype = null;
+
+    const bk = orderNo + '||' + item + '||' + qty;
+    if (borrowLookup[bk]) { slip = borrowLookup[bk]; mtype = 'borrow'; }
+
+    if (!slip) {
+      const tk = base + '||' + item + '||' + qty;
+      if (transferLookup[tk]) { slip = transferLookup[tk]; mtype = 'transfer'; }
+    }
+
+    // 數量不符判定：來源單號+品號 吻合但數量不同
+    let qtyMismatch = false;
+    if (!slip) {
+      const bpk = orderNo + '||' + item;
+      if (borrowPartial[bpk]) {
+        slip = borrowPartial[bpk][0].slip;
+        mtype = 'borrow';
+        qtyMismatch = true;
+      }
+    }
+    if (!slip) {
+      const tpk = base + '||' + item;
+      if (transferPartial[tpk]) {
+        slip = transferPartial[tpk][0].slip;
+        mtype = 'transfer';
+        qtyMismatch = true;
+      }
+    }
+
+    RESULTS.push({ row, slip, mtype, qtyMismatch });
+  });
+
+  pf.style.width = '100%';
+  setTimeout(() => { pb.style.display = 'none'; }, 500);
+
+  const matchedB  = RESULTS.filter(r => r.mtype === 'borrow'   && !r.qtyMismatch).length;
+  const matchedT  = RESULTS.filter(r => r.mtype === 'transfer' && !r.qtyMismatch).length;
+  const mismatch  = RESULTS.filter(r => r.qtyMismatch).length;
+  const unmatched = RESULTS.filter(r => !r.slip).length;
+  document.getElementById('st-total').textContent = RESULTS.length;
+  document.getElementById('st-matched').textContent = matchedB;
+  document.getElementById('st-transfer').textContent = matchedT;
+  document.getElementById('st-mismatch').textContent = mismatch;
+  document.getElementById('st-unmatched').textContent = unmatched;
+  document.getElementById('stats-section').style.display = 'block';
+  document.getElementById('btn-export').disabled = false;
+  const noteEl = document.getElementById('match-note');
+  noteEl.textContent = `比對完成：共 ${RESULTS.length} 筆，配對 ${matchedB + matchedT} 筆，數量不符 ${mismatch} 筆，未找到 ${unmatched} 筆`;
+  const dbg = document.getElementById('debug-info');
+  if (dbg) {
+    const bKeys = Object.keys(borrowLookup).length;
+    const tKeys = Object.keys(transferLookup).length;
+    dbg.textContent = `[診斷] 整場訂單 ${RESULTS.length} 筆 | 借出單索引 ${bKeys} 筆 | 轉撥單索引 ${tKeys} 筆`;
+    dbg.style.display = 'block';
+  }
+  renderTable();
+}
+
+function renderTable() {
+  const filterType = document.getElementById('filter-type').value;
+  const search = document.getElementById('filter-search').value.toLowerCase();
+  const tbody = document.getElementById('tbl-body');
+  const empty = document.getElementById('empty-msg');
+
+  const filtered = RESULTS.filter(r => {
+    if (filterType === 'borrow'   && (r.mtype !== 'borrow'   || r.qtyMismatch)) return false;
+    if (filterType === 'transfer' && (r.mtype !== 'transfer' || r.qtyMismatch)) return false;
+    if (filterType === 'mismatch' && !r.qtyMismatch) return false;
+    if (filterType === 'none' && r.slip) return false;
+    if (search) {
+      const orderNo = String(r.row['訂單單號'] || '').toLowerCase();
+      const item = String(r.row['品號'] || '').toLowerCase();
+      if (!orderNo.includes(search) && !item.includes(search)) return false;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const fmtDate = v => {
+    if (!v) return '';
+    if (v instanceof Date) return v.toLocaleDateString('zh-TW');
+    return String(v);
+  };
+
+  tbody.innerHTML = filtered.map((r, i) => {
+    const row = r.row;
+    let slipTag, vMark, cls;
+    if (r.slip && !r.qtyMismatch) {
+      slipTag = `<span class="tag-${r.mtype}">${r.mtype === 'borrow' ? '借出單' : '轉撥單'}</span> ${r.slip}`;
+      vMark = `<span class="v-mark">V</span>`;
+      cls = 'row-matched';
+    } else if (r.slip && r.qtyMismatch) {
+      slipTag = `<span class="tag-mismatch">${r.mtype === 'borrow' ? '借出單' : '轉撥單'}</span> ${r.slip}`;
+      vMark = `<span class="mismatch-mark">數量不符，待判定</span>`;
+      cls = 'row-mismatch';
+    } else {
+      slipTag = `<span class="tag-none">未找到</span>`;
+      vMark = '';
+      cls = 'row-unmatched';
+    }
+    return `<tr class="${cls}">
+      <td style="color:#aaa">${i+1}</td>
+      <td>${row['客戶代號']||''}</td>
+      <td>${row['客戶簡稱']||''}</td>
+      <td>${fmtDate(row['訂單日期'])}</td>
+      <td style="font-family:monospace;font-size:12px">${row['訂單單號']||''}</td>
+      <td>${row['客戶單號']||''}</td>
+      <td>${fmtDate(row['預交日期'])}</td>
+      <td style="font-family:monospace;font-size:12px">${row['品號']||''}</td>
+      <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis" title="${row['品名']||''}">${row['品名']||''}</td>
+      <td style="text-align:right">${row['訂單數量']||''}</td>
+      <td>${row['單位']||''}</td>
+      <td>${row['結案']||''}</td>
+      <td style="${r.slip ? 'font-weight:600' : 'background:#fffde7'}">${slipTag}</td>
+      <td style="text-align:center">${vMark}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function exportExcel() {
+  if (!RESULTS.length) return;
+  const btn = document.getElementById('btn-export');
+  btn.disabled = true;
+  btn.textContent = '產生中...';
+
+  const headers = ['客戶代號','客戶簡稱','訂單日期','訂單單號','客戶單號','預交日期',
+                   '品號','品名','規格','訂單數量','未交量','已交量','單位','結案','借出單/轉撥單號','扣帳'];
+  const colWidths = [10,10,14,28,22,14,20,24,32,10,9,9,8,8,24,18];
+
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('整場訂單比對結果');
+
+  // 欄寬
+  ws.columns = headers.map((h, i) => ({ header: h, key: h, width: colWidths[i] }));
+
+  // 第一列：黃底 + 黑色粗體 + 置中
+  const headerRow = ws.getRow(1);
+  headers.forEach((h, ci) => {
+    const cell = headerRow.getCell(ci + 1);
+    cell.value = h;
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+    cell.font = { bold: true, name: 'Arial', size: 11, color: { argb: 'FF000000' } };
+    cell.alignment = { horizontal: 'center', vertical: 'middle' };
+  });
+  headerRow.height = 20;
+
+  // 凍結第一列
+  ws.views = [{ state: 'frozen', ySplit: 1, topLeftCell: 'A2' }];
+
+  // 第一列自動篩選
+  ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: headers.length } };
+
+  const fmtDate = v => {
+    if (!v) return '';
+    if (v instanceof Date) return v.toLocaleDateString('zh-TW');
+    return String(v);
+  };
+
+  // 資料列
+  RESULTS.forEach((r, ri) => {
+    const row = r.row;
+    const dataRow = ws.addRow([
+      row['客戶代號']||'', row['客戶簡稱']||'',
+      fmtDate(row['訂單日期']), row['訂單單號']||'',
+      row['客戶單號']||'', fmtDate(row['預交日期']),
+      row['品號']||'', row['品名']||'', row['規格']||'',
+      row['訂單數量']||'', row['未交量']||'', row['已交量']||'',
+      row['單位']||'', row['結案']||'',
+      r.slip || '',
+      r.slip ? 'V' : ''
+    ]);
+
+    // 借出單/轉撥單號欄 (col 15) 和扣帳欄 (col 16)
+    const slipCell = dataRow.getCell(15);
+    const checkCell = dataRow.getCell(16);
+    if (r.slip && !r.qtyMismatch) {
+      // 完全符合：綠底 + V
+      slipCell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6EFCE' } };
+      slipCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      checkCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFC6EFCE' } };
+      checkCell.font = { bold: true, color: { argb: 'FF006100' }, name: 'Arial', size: 11 };
+      checkCell.alignment = { horizontal: 'center', vertical: 'middle' };
+    } else if (r.slip && r.qtyMismatch) {
+      // 數量不符：橘底 + 待判定文字
+      slipCell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFCE4D6' } };
+      slipCell.alignment = { horizontal: 'center', vertical: 'middle' };
+      checkCell.value = '數量不符，待判定';
+      checkCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFCE4D6' } };
+      checkCell.font = { bold: true, color: { argb: 'FFC05000' }, name: 'Arial', size: 10 };
+      checkCell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    } else {
+      // 未找到：黃底空白
+      slipCell.fill  = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+      checkCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+    }
+  });
+
+  // 產生並下載
+  const buf = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const now = new Date();
+  const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}`;
+  a.href = url;
+  a.download = `整場訂單_比對結果_${ts}.xlsx`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  btn.disabled = false;
+  btn.textContent = '⬇ 匯出 Excel';
+}
+</script>
+</body>
+</html>

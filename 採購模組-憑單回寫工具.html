@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>憑單單號回寫工具</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;600&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f2f4f8;
+    --surface: #ffffff;
+    --surface2: #f7f8fc;
+    --border: #dde2ee;
+    --accent: #6b9ef5;
+    --accent2: #a78bfa;
+    --success: #3ec97a;
+    --warn: #f5a94e;
+    --danger: #f26e6e;
+    --text: #3a3f5c;
+    --muted: #8e97b8;
+    --mono: 'JetBrains Mono', monospace;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans TC', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px 60px;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      radial-gradient(circle at 20% 20%, rgba(107,158,245,.10) 0%, transparent 50%),
+      radial-gradient(circle at 80% 80%, rgba(167,139,250,.08) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .container { position: relative; z-index: 1; width: 100%; max-width: 860px; }
+
+  header { text-align: center; margin-bottom: 40px; }
+  .badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1.5px solid rgba(107,158,245,.35);
+    border-radius: 20px;
+    padding: 4px 14px;
+    margin-bottom: 16px;
+    background: rgba(107,158,245,.10);
+  }
+  h1 {
+    font-size: clamp(22px, 4vw, 34px);
+    font-weight: 700;
+    letter-spacing: -.02em;
+    background: linear-gradient(135deg, #5a7de8 30%, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.25;
+    margin-bottom: 10px;
+  }
+  .subtitle { color: var(--muted); font-size: 13.5px; line-height: 1.8; }
+
+  /* Logic card hidden per requirement */
+  .logic-card { display: none; }
+
+  .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 22px; }
+  @media(max-width:600px){ .upload-grid { grid-template-columns: 1fr; } }
+
+  .upload-box {
+    background: var(--surface);
+    border: 2px dashed var(--border);
+    border-radius: 18px;
+    padding: 32px 20px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s, box-shadow .2s;
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(107,158,245,.06);
+  }
+  .upload-box:hover, .upload-box.dragover {
+    border-color: var(--accent);
+    background: rgba(107,158,245,.05);
+    box-shadow: 0 4px 20px rgba(107,158,245,.14);
+  }
+  .upload-box.loaded {
+    border-style: solid;
+    border-color: rgba(62,201,122,.55);
+    background: rgba(62,201,122,.04);
+    box-shadow: 0 4px 18px rgba(62,201,122,.12);
+  }
+  .upload-box input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .upload-icon { font-size: 36px; margin-bottom: 10px; display: block; transition: transform .25s; }
+  .upload-box:hover .upload-icon { transform: translateY(-4px) scale(1.08); }
+  .upload-label { font-size: 14px; font-weight: 600; margin-bottom: 4px; color: var(--text); }
+  .upload-hint { font-size: 11.5px; color: var(--muted); }
+  .file-name { margin-top: 10px; font-size: 12px; font-family: var(--mono); color: var(--success); word-break: break-all; }
+
+  /* col-badge hidden per requirement */
+  .col-badge { display: none; }
+
+  .run-btn {
+    width: 100%;
+    padding: 15px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none;
+    border-radius: 14px;
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    font-family: 'Noto Sans TC', sans-serif;
+    cursor: pointer;
+    letter-spacing: .06em;
+    transition: opacity .2s, transform .15s, box-shadow .2s;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 18px rgba(107,158,245,.30);
+  }
+  .run-btn:hover { opacity: .92; transform: translateY(-2px); box-shadow: 0 6px 24px rgba(107,158,245,.38); }
+  .run-btn:active { transform: translateY(0); }
+  .run-btn:disabled { opacity: .38; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  .result { display: none; background: var(--surface); border: 1.5px solid var(--border); border-radius: 18px; overflow: hidden; box-shadow: 0 4px 20px rgba(107,158,245,.10); }
+  .result.show { display: block; animation: fadeUp .3s ease; }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+
+  .result-header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 15px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .status-dot.success { background: var(--success); box-shadow: 0 0 8px rgba(62,201,122,.5); }
+
+  .stats-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; background: var(--border); border-bottom: 1px solid var(--border); }
+  .stat-cell { background: var(--surface); padding: 16px 20px; text-align: center; }
+  .stat-num { font-family: var(--mono); font-size: 28px; font-weight: 700; color: var(--accent); line-height: 1; margin-bottom: 4px; }
+  .stat-num.green { color: var(--success); }
+  .stat-num.warn { color: var(--warn); }
+  .stat-label { font-size: 11px; color: var(--muted); }
+
+  .log-area { padding: 16px 20px; max-height: 230px; overflow-y: auto; font-family: var(--mono); font-size: 12px; line-height: 1.85; }
+  .log-line { display: flex; gap: 10px; }
+  .log-line .ts { color: var(--muted); flex-shrink: 0; }
+  .log-line .msg { color: var(--text); }
+  .log-line.ok .msg { color: var(--success); }
+  .log-line.err .msg { color: var(--danger); }
+  .log-line.info .msg { color: var(--accent); }
+
+  .download-btn {
+    display: block; margin: 14px 20px 20px;
+    padding: 12px 20px;
+    background: rgba(62,201,122,.10);
+    border: 1.5px solid rgba(62,201,122,.38);
+    border-radius: 10px;
+    color: #2ab86a;
+    font-size: 13px; font-weight: 700;
+    font-family: 'Noto Sans TC', sans-serif;
+    text-align: center; cursor: pointer; text-decoration: none;
+    transition: background .2s, box-shadow .2s;
+  }
+  .download-btn:hover { background: rgba(62,201,122,.18); box-shadow: 0 3px 12px rgba(62,201,122,.18); }
+
+  .error-box { display: none; background: rgba(242,110,110,.08); border: 1.5px solid rgba(242,110,110,.30); border-radius: 12px; padding: 13px 18px; font-size: 13px; color: var(--danger); margin-bottom: 16px; }
+  .error-box.show { display: block; }
+
+  /* cute deco circles */
+  .deco { position: fixed; border-radius: 50%; pointer-events: none; z-index: 0; opacity: .18; }
+  .deco-1 { width: 320px; height: 320px; background: radial-gradient(circle, #a78bfa, transparent); top: -80px; right: -80px; }
+  .deco-2 { width: 240px; height: 240px; background: radial-gradient(circle, #6b9ef5, transparent); bottom: -60px; left: -60px; }
+
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="deco deco-1"></div>
+<div class="deco deco-2"></div>
+
+<div class="container">
+  <header>
+    <div class="badge">Excel 自動化工具</div>
+    <h1>憑單單號回寫工具</h1>
+    <p class="subtitle">上傳兩個 Excel 檔案，自動比對並將憑單單號寫入進貨單檔案<br>輸出格式與原始檔案完全一致（字型、顏色、欄寬、背景色全數保留）</p>
+  </header>
+
+  <!-- logic-card hidden -->
+  <div class="logic-card"></div>
+
+  <div class="upload-grid">
+    <div class="upload-box" id="box711" ondragover="drag(event,'box711')" ondragleave="undrag('box711')" ondrop="drop(event,'file711')">
+      <input type="file" id="file711" accept=".xlsx,.xls" onchange="loadFile('file711','box711','info711')">
+      <span class="upload-icon">📋</span>
+      <div class="upload-label">應付單</div>
+      <div class="upload-hint">來源檔（憑證號碼＋發票號碼）</div>
+      <div class="file-name" id="info711"></div>
+      <div class="col-badge"></div>
+    </div>
+    <div class="upload-box" id="box341" ondragover="drag(event,'box341')" ondragleave="undrag('box341')" ondrop="drop(event,'file341')">
+      <input type="file" id="file341" accept=".xlsx,.xls" onchange="loadFile('file341','box341','info341')">
+      <span class="upload-icon">📄</span>
+      <div class="upload-label">進貨單</div>
+      <div class="upload-hint">目標檔（回寫憑單單號）</div>
+      <div class="file-name" id="info341"></div>
+      <div class="col-badge"></div>
+    </div>
+  </div>
+
+  <div class="error-box" id="errBox"></div>
+  <button class="run-btn" id="runBtn" onclick="run()" disabled>⚡ 執行回寫</button>
+
+  <div class="result" id="result">
+    <div class="result-header">
+      <div class="status-dot success"></div>
+      <div class="result-title" id="resultTitle">處理完成</div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-cell"><div class="stat-num" id="statTotal">—</div><div class="stat-label">應付單有效筆數</div></div>
+      <div class="stat-cell"><div class="stat-num green" id="statWrite">—</div><div class="stat-label">成功回寫筆數</div></div>
+      <div class="stat-cell"><div class="stat-num warn" id="statSkip">—</div><div class="stat-label">未比對筆數</div></div>
+    </div>
+    <div class="log-area" id="logArea"></div>
+    <a class="download-btn" id="downloadBtn" href="#">⬇ 下載 進貨單_已回寫.xlsx</a>
+  </div>
+</div>
+
+<script>
+let wb711 = null, raw341 = null;
+
+function drag(e,id){ e.preventDefault(); document.getElementById(id).classList.add('dragover'); }
+function undrag(id){ document.getElementById(id).classList.remove('dragover'); }
+function drop(e,inputId){
+  e.preventDefault(); e.currentTarget.classList.remove('dragover');
+  const f = e.dataTransfer.files[0]; if(!f) return;
+  const inp = document.getElementById(inputId);
+  const dt = new DataTransfer(); dt.items.add(f); inp.files = dt.files;
+  inp.dispatchEvent(new Event('change'));
+}
+
+function loadFile(inputId, boxId, infoId){
+  const file = document.getElementById(inputId).files[0]; if(!file) return;
+  document.getElementById(infoId).textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const buf = e.target.result;
+    if(inputId === 'file711'){
+      wb711 = XLSX.read(buf, {type:'array', cellText:false});
+    } else {
+      raw341 = buf;
+      const wb = XLSX.read(buf, {type:'array', cellText:false});
+      window._wb341 = wb;
+    }
+    document.getElementById(boxId).classList.add('loaded');
+    document.getElementById('runBtn').disabled = !(wb711 && raw341);
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function log(area, type, msg){
+  const now = new Date();
+  const ts = [now.getHours(),now.getMinutes(),now.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');
+  const line = document.createElement('div');
+  line.className = `log-line ${type}`;
+  line.innerHTML = `<span class="ts">${ts}</span><span class="msg">${msg}</span>`;
+  area.appendChild(line);
+  area.scrollTop = area.scrollHeight;
+}
+
+function showError(msg){
+  const b = document.getElementById('errBox');
+  b.textContent = '⚠ ' + msg; b.classList.add('show');
+}
+
+function loadJSZip(){
+  return new Promise((res,rej)=>{
+    if(window.JSZip){ res(window.JSZip); return; }
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    s.onload = ()=>res(window.JSZip); s.onerror = rej;
+    document.head.appendChild(s);
+  });
+}
+
+async function patchXlsx(raw341Buf, mUpdates){
+  const JSZip = await loadJSZip();
+  const zip = await JSZip.loadAsync(raw341Buf);
+
+  const wbRelsXml = await zip.file('xl/_rels/workbook.xml.rels').async('string');
+  const wbXml     = await zip.file('xl/workbook.xml').async('string');
+  const sheetIdMatch = wbXml.match(/<sheet[^>]+r:id="(rId\d+)"/);
+  const rId = sheetIdMatch ? sheetIdMatch[1] : 'rId1';
+  const targetMatch = new RegExp(`Id="${rId}"[^>]+Target="([^"]+)"`).exec(wbRelsXml);
+  const sheetPath = targetMatch ? 'xl/' + targetMatch[1] : 'xl/worksheets/sheet1.xml';
+
+  let xml = await zip.file(sheetPath).async('string');
+
+  const styleMatch = xml.match(/<c r="M1"[^>]*s="(\d+)"/);
+  const mStyle = styleMatch ? styleMatch[1] : '8';
+
+  for(const [rowNum, val] of Object.entries(mUpdates)){
+    const ref = `M${rowNum}`;
+    const valEsc = val.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const newCell = `<c r="${ref}" s="${mStyle}" t="inlineStr"><is><t>${valEsc}</t></is></c>`;
+    xml = xml.replace(
+      new RegExp(`<c r="${ref}"[^>]*/>`),
+      newCell
+    );
+  }
+
+  zip.file(sheetPath, xml);
+  return await zip.generateAsync({ type:'arraybuffer', compression:'DEFLATE', compressionOptions:{level:6} });
+}
+
+async function run(){
+  document.getElementById('errBox').classList.remove('show');
+  document.getElementById('result').classList.remove('show');
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true; btn.textContent = '⏳ 處理中...';
+
+  try {
+    const ws711   = wb711.Sheets[wb711.SheetNames[0]];
+    const rows711 = XLSX.utils.sheet_to_json(ws711, {header:1, defval:''});
+    let hdr711 = rows711.findIndex(r => r.includes('憑單單號'));
+    if(hdr711 < 0){ showError('應付單 找不到標題列（憑單單號）'); return; }
+
+    const h711    = rows711[hdr711];
+    const colA711 = h711.indexOf('憑單單號');
+    const colE711 = h711.indexOf('發票號碼');
+    const colK711 = h711.indexOf('憑證號碼');
+    if([colA711,colE711,colK711].includes(-1)){ showError('應付單 缺少必要欄位'); return; }
+
+    const kMap = {};
+    let valid711 = 0;
+    for(let i = hdr711+1; i < rows711.length; i++){
+      const inv = String(rows711[i][colE711]||'').trim();
+      const vou = String(rows711[i][colK711]||'').trim();
+      const bil = String(rows711[i][colA711]||'').trim();
+      if(inv && vou && bil && !kMap[vou]){ kMap[vou]=bil; valid711++; }
+    }
+
+    const wb341   = window._wb341;
+    const ws341   = wb341.Sheets[wb341.SheetNames[0]];
+    const rows341 = XLSX.utils.sheet_to_json(ws341, {header:1, defval:''});
+    let hdr341 = rows341.findIndex(r => r.includes('憑單單號'));
+    if(hdr341 < 0){ showError('進貨單 找不到標題列（憑單單號）'); return; }
+
+    const h341    = rows341[hdr341];
+    const colD341 = h341.indexOf('驗收/退貨單號');
+    if(colD341 < 0){ showError('進貨單 找不到「驗收/退貨單號」欄'); return; }
+
+    const mUpdates = {};
+    let writeCount = 0, skipCount = 0;
+
+    for(let i = hdr341+1; i < rows341.length; i++){
+      const rawD  = String(rows341[i][colD341]||'');
+      const clean = rawD.replace(/\s/g,'').replace(/-\d{4}$/, '');
+      if(!clean) continue;
+      if(kMap[clean]){
+        mUpdates[i+1] = kMap[clean];
+        writeCount++;
+      } else {
+        skipCount++;
+      }
+    }
+
+    const logArea = document.getElementById('logArea');
+    logArea.innerHTML = '';
+    log(logArea,'info',`應付單有效對應筆數：${valid711}`);
+    log(logArea,'ok',  `成功比對：${writeCount} 筆`);
+    if(skipCount > 0) log(logArea,'info',`未比對到：${skipCount} 筆`);
+    log(logArea,'info','正在生成 Excel（直接 patch XML，完整保留原始格式）...');
+
+    const outBuf = await patchXlsx(raw341, mUpdates);
+
+    log(logArea,'ok','完成！字型 / 背景色 / 欄寬 / 邊框全數保留');
+
+    document.getElementById('statTotal').textContent = valid711;
+    document.getElementById('statWrite').textContent = writeCount;
+    document.getElementById('statSkip').textContent  = skipCount;
+    document.getElementById('resultTitle').textContent = `處理完成 ── 回寫 ${writeCount} 筆`;
+
+    const blob = new Blob([outBuf], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url  = URL.createObjectURL(blob);
+    const dlBtn = document.getElementById('downloadBtn');
+    dlBtn.href = url; dlBtn.download = '進貨單_已回寫.xlsx';
+
+    document.getElementById('result').classList.add('show');
+
+  } catch(err){
+    showError('執行錯誤：' + err.message);
+    console.error(err);
+  } finally {
+    btn.disabled = false; btn.textContent = '⚡ 執行回寫';
+  }
+}
+</script>
+</body>
+</html>

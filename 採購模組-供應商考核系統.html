@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>供應商考核評分系統 — 2025年度</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-size:13px;font-family:"Microsoft JhengHei",Arial,sans-serif;background:#f0f2f5;color:#222;padding:16px}
+.page{max-width:980px;margin:0 auto}
+.hdr{background:#2e6fad;color:#fff;padding:13px 20px;border-radius:9px;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between}
+.hdr h1{font-size:16px;font-weight:500;letter-spacing:3px}
+.hdr span{font-size:11px;opacity:.8}
+.card{background:#fff;border:0.5px solid #d0d5dd;border-radius:9px;padding:14px 16px;margin-bottom:10px}
+.sec-title{font-size:12.5px;font-weight:500;color:#2e6fad;border-left:3px solid #2e6fad;padding-left:8px;margin-bottom:11px}
+/* Upload */
+.uprow{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ucard{border:1.5px dashed #bbb;border-radius:8px;padding:14px 10px;text-align:center;position:relative;cursor:pointer;transition:border-color .2s,background .2s}
+.ucard:hover,.ucard.over{border-color:#2e6fad;background:#edf3fb}
+.ucard.loaded{border-style:solid;border-color:#27ae60;background:#f0fff5}
+.ucard input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.ucard .ico{font-size:22px;margin-bottom:5px}
+.ucard .ulbl{font-size:12px;font-weight:500}
+.ucard .udsc{font-size:11px;color:#777;margin-top:2px}
+.ucard .ust{font-size:11px;margin-top:6px;color:#999}
+.ucard.loaded .ust{color:#27ae60}
+/* Config */
+.cfgrow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.cfgitem label{font-size:11px;color:#555;display:block;margin-bottom:3px}
+.cfgitem input{width:100%;padding:5px 8px;border:0.5px solid #ccc;border-radius:5px;font-size:13px;background:#fff}
+/* Cooperation */
+.cgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px 10px}
+.ci{display:flex;align-items:center;gap:5px}
+.ci span{font-size:12px;flex:1;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:80px}
+.ci input{width:46px;padding:3px 5px;border:0.5px solid #ccc;border-radius:4px;font-size:12px;text-align:center}
+/* Generate */
+.genbtn{display:block;width:100%;padding:10px;background:#2e6fad;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;margin-bottom:12px;letter-spacing:1px}
+.genbtn:hover{background:#265e99}
+/* Table */
+.eval{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:6px}
+.eval th,.eval td{border:0.5px solid #bbb;text-align:center;padding:4px 3px;vertical-align:middle}
+.eval thead th{background:#dce7f3;font-weight:500;font-size:11px}
+.eval tbody tr:nth-child(odd) td{background:#fff}
+.eval tbody tr:nth-child(even) td{background:#f9fbff}
+.eval tr.hi td{background:#fffbe0 !important}
+.ed{outline:none}
+.ed:focus{background:rgba(46,111,173,.09) !important;box-shadow:inset 0 0 0 1.5px rgba(46,111,173,.3)}
+.ga{color:#0a6e0a;font-weight:500}
+.gb{color:#b97a00;font-weight:500}
+.gc{color:#cc5200;font-weight:500}
+.gd{color:#b30000;font-weight:500}
+.slow{color:#c0392b}
+.nc{text-align:left !important;font-size:11px;color:#555;padding-left:5px !important}
+.rmkrow td{text-align:left !important;font-size:11px;color:#555;padding:6px 8px;line-height:1.65;background:#f4f8fd !important}
+.totcol{font-weight:500}
+.delbtn{background:none;border:none;color:#c0392b;cursor:pointer;font-size:13px;padding:0 3px;line-height:1;opacity:.7}
+.delbtn:hover{opacity:1}
+.editbtn{background:none;border:none;color:#2e6fad;cursor:pointer;font-size:13px;padding:0 3px;line-height:1;opacity:.7}
+.editbtn:hover{opacity:1}
+.addbtn{background:none;border:0.5px solid #2e6fad;color:#2e6fad;font-size:11px;padding:3px 10px;border-radius:4px;cursor:pointer;margin-top:5px}
+.addbtn:hover{background:#edf3fb}
+/* Action bar */
+.actbar{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.abtn{padding:7px 18px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer}
+.abtn.pri{background:#2e6fad;color:#fff;border:none}
+.abtn.sec{background:#fff;border:0.5px solid #2e6fad;color:#2e6fad}
+.abtn:hover{opacity:.85}
+/* Edit modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:12px;padding:22px 24px;width:360px;box-shadow:0 8px 32px rgba(0,0,0,.18)}
+.modal h3{font-size:14px;font-weight:600;color:#2e6fad;margin-bottom:16px;border-left:3px solid #2e6fad;padding-left:8px}
+.mfield{margin-bottom:12px}
+.mfield label{font-size:11px;color:#555;display:block;margin-bottom:3px}
+.mfield input{width:100%;padding:6px 9px;border:0.5px solid #ccc;border-radius:5px;font-size:13px}
+.mfield input:focus{outline:none;border-color:#2e6fad;box-shadow:0 0 0 2px rgba(46,111,173,.15)}
+.modal-btns{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.mbtn{padding:7px 20px;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer}
+.mbtn.ok{background:#2e6fad;color:#fff;border:none}
+.mbtn.cancel{background:#fff;border:0.5px solid #aaa;color:#555}
+.mbtn:hover{opacity:.85}
+/* Footer */
+.sig{display:flex;justify-content:space-between;font-size:12px;color:#555;margin-top:16px;padding-top:12px;border-top:0.5px solid #ddd}
+/* Print */
+@media print{
+  body{background:#fff;padding:0}
+  .card{border:none;padding:0;margin:0}
+  .upcard-section,.cfgsect,.coopsect,.genbtn,.actbar,.delbtn,.addbtn,.hdr-print-hide{display:none !important}
+  #results{display:block !important}
+  .eval th,.eval td{border:1px solid #aaa}
+  .ed:focus{box-shadow:none}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="hdr">
+  <h1>供 應 商 考 核 評 分 系 統</h1>
+  <span>2025年度　尊博科技股份有限公司</span>
+</div>
+
+<!-- ① Upload -->
+<div class="card upcard-section">
+  <div class="sec-title">① 上傳來源檔案</div>
+  <div class="uprow">
+    <div class="ucard" id="uc1" ondragover="onDO(event,'1')" ondragleave="onDL('1')" ondrop="onDP(event,'d')">
+      <input type="file" accept=".xlsx,.xls" onchange="hf(event,'d')">
+      <div class="ico">📋</div>
+      <div class="ulbl">來源1 — 交期逾期</div>
+      <div class="udsc">訂單＆製令超過5天</div>
+      <div class="ust" id="st1">點選或拖曳上傳 .xlsx</div>
+    </div>
+    <div class="ucard" id="uc2" ondragover="onDO(event,'2')" ondragleave="onDL('2')" ondrop="onDP(event,'q')">
+      <input type="file" accept=".xlsx,.xls" onchange="hf(event,'q')">
+      <div class="ico">🔍</div>
+      <div class="ulbl">來源2 — 品質異常</div>
+      <div class="udsc">品質異常記錄表</div>
+      <div class="ust" id="st2">點選或拖曳上傳 .xlsx</div>
+    </div>
+    <div class="ucard" id="uc3" ondragover="onDO(event,'3')" ondragleave="onDL('3')" ondrop="onDP(event,'t')">
+      <input type="file" accept=".xlsx,.xls" onchange="hf(event,'t')">
+      <div class="ico">📊</div>
+      <div class="ulbl">來源3 — 交易前20名</div>
+      <div class="udsc">交易金額排名</div>
+      <div class="ust" id="st3">點選或拖曳上傳 .xlsx</div>
+    </div>
+  </div>
+</div>
+
+<!-- ② Config -->
+<div class="card cfgsect">
+  <div class="sec-title">② 評分參數設定</div>
+  <div class="cfgrow">
+    <div class="cfgitem"><label>品質基分（滿分）</label><input type="number" id="cqb" value="60" min="0" max="100" oninput="onCC()"></div>
+    <div class="cfgitem"><label>每筆品異扣分</label><input type="number" id="cqd" value="5" min="0" max="60" oninput="onCC()"></div>
+    <div class="cfgitem"><label>交期基分（滿分）</label><input type="number" id="cdb" value="30" min="0" max="100" oninput="onCC()"></div>
+    <div class="cfgitem"><label>每次逾期扣分</label><input type="number" id="cdd" value="2" min="0" max="30" oninput="onCC()"></div>
+  </div>
+</div>
+
+<!-- ③ Cooperation -->
+<div class="card coopsect">
+  <div class="sec-title">③ 配合度設定（各廠商 0–10 分，可調整）</div>
+  <div class="cgrid" id="cgrid"></div>
+</div>
+
+<!-- Generate -->
+<button class="genbtn" onclick="gen()">▶ 產 生 考 核 表</button>
+
+<!-- Results -->
+<div id="results" style="display:none">
+
+  <!-- Top 20 -->
+  <div class="card">
+    <div class="sec-title">交易前 20 名供應商考核</div>
+    <div style="overflow-x:auto">
+      <table class="eval" id="t1">
+        <thead>
+          <tr>
+            <th rowspan="2" style="width:38px">序號</th>
+            <th rowspan="2" style="min-width:70px">廠　商</th>
+            <th colspan="3">考　核　項　目</th>
+            <th rowspan="2" style="width:38px">總分</th>
+            <th colspan="4">考核等級</th>
+            <th rowspan="2" style="min-width:90px">備　註</th>
+            <th rowspan="2" style="width:30px" class="hdr-print-hide"></th>
+          </tr>
+          <tr><th style="width:50px">品質60</th><th style="width:50px">交期30</th><th style="width:50px">配合10</th><th style="width:26px">A</th><th style="width:26px">B</th><th style="width:26px">C</th><th style="width:26px">D</th></tr>
+        </thead>
+        <tbody id="tb1"></tbody>
+      </table>
+    </div>
+    <button class="addbtn" onclick="addRow('tb1')">＋ 新增廠商</button>
+  </div>
+
+  <!-- Non-top-20 -->
+  <div class="card" id="exsec" style="display:none">
+    <div class="sec-title">非前20名，但有品異及交期逾期</div>
+    <div style="overflow-x:auto">
+      <table class="eval" id="t2">
+        <thead>
+          <tr>
+            <th rowspan="2" style="width:38px">序號</th>
+            <th rowspan="2" style="min-width:70px">廠　商</th>
+            <th colspan="3">考　核　項　目</th>
+            <th rowspan="2" style="width:38px">總分</th>
+            <th colspan="4">考核等級</th>
+            <th rowspan="2" style="min-width:90px">備　註</th>
+            <th rowspan="2" style="width:30px" class="hdr-print-hide"></th>
+          </tr>
+          <tr><th style="width:50px">品質60</th><th style="width:50px">交期30</th><th style="width:50px">配合10</th><th style="width:26px">A</th><th style="width:26px">B</th><th style="width:26px">C</th><th style="width:26px">D</th></tr>
+        </thead>
+        <tbody id="tb2"></tbody>
+      </table>
+    </div>
+    <button class="addbtn" onclick="addRow('tb2')">＋ 新增廠商</button>
+  </div>
+
+  <!-- Signature -->
+  <div class="sig">
+    <span>核　准：＿＿＿＿＿＿＿＿＿</span>
+    <span>考核年度：<strong>2025年度</strong></span>
+    <span>製　表：＿＿＿＿＿＿＿＿＿</span>
+  </div>
+
+  <!-- Actions -->
+  <div class="actbar">
+    <button class="abtn sec" onclick="exportHTML()">匯出 HTML 檔案</button>
+    <button class="abtn sec" onclick="exportWord()" style="border-color:#1f5c8b;color:#1f5c8b">匯出 Word 考核表</button>
+    <button class="abtn pri" onclick="window.print()">列　印</button>
+  </div>
+</div>
+
+</div><!-- /page -->
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h3>✏ 修改廠商資料</h3>
+    <div class="mfield"><label>序號</label><input type="text" id="m_rank"></div>
+    <div class="mfield"><label>廠商名稱</label><input type="text" id="m_vendor"></div>
+    <div class="mfield"><label>品質分數（0–<span id="m_qmax">60</span>）</label><input type="number" id="m_q" min="0" oninput="mCalc()"></div>
+    <div class="mfield"><label>交期分數（0–<span id="m_dmax">30</span>）</label><input type="number" id="m_d" min="0" oninput="mCalc()"></div>
+    <div class="mfield"><label>配合度分數（0–10）</label><input type="number" id="m_c" min="0" max="10" oninput="mCalc()"></div>
+    <div class="mfield"><label>備註</label><input type="text" id="m_note"></div>
+    <div style="font-size:12px;color:#555;background:#f4f8fd;border-radius:6px;padding:7px 10px;margin-bottom:4px">
+      總分：<strong id="m_tot">—</strong>　等級：<strong id="m_grade">—</strong>
+    </div>
+    <div class="modal-btns">
+      <button class="mbtn cancel" onclick="closeModal()">取　消</button>
+      <button class="mbtn ok" onclick="applyModal()">確認修改</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Default state (pre-loaded from processed files) ──────────────────────────
+const S = {
+  dc: {'Simtech':1,'GotoAndPlay S.N.C':1,'星邑':1,'敦華(廣華)':1,'喜品優':1,'鼎新':1,'騰鴻':1,'順茂':1},
+  qc: {'Simtech':1,'GotoAndPlay S.N.C':1,'星邑':1,'敦華(廣華)':1,'喜品優':1,'鼎新':1,'騰鴻':1,'順茂':1},
+  t20: ['艾訊','騰鴻','研華','JCM','GTI','CPI','星邑','豐康','易控','道邦','宜鼎','欣彰','廣樵','上犁','長映','ELO','亞郁','德川','Paltronics','協明'],
+  coop: {艾訊:10,騰鴻:8,研華:9,JCM:10,GTI:10,CPI:8,星邑:10,豐康:8,易控:10,道邦:9,宜鼎:10,欣彰:10,廣樵:9,上犁:9,長映:9,ELO:9,亞郁:9,德川:7,Paltronics:8,協明:10,
+    Simtech:8,'GotoAndPlay S.N.C':9,'敦華(廣華)':10,喜品優:9,鼎新:9,順茂:10}
+};
+
+// ─── Drag / Drop helpers ───────────────────────────────────────────────────────
+function onDO(e,n){e.preventDefault();document.getElementById('uc'+n).classList.add('over')}
+function onDL(n){document.getElementById('uc'+n).classList.remove('over')}
+function onDP(e,t){e.preventDefault();const f=e.dataTransfer.files[0];if(f)pf(f,t)}
+function hf(e,t){const f=e.target.files[0];if(f)pf(f,t)}
+
+// ─── File processing ───────────────────────────────────────────────────────────
+function pf(file, type) {
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, {type:'array'});
+      if (type==='d') {
+        S.dc = parseIssue(wb);
+        const n = Object.keys(S.dc).length;
+        document.getElementById('uc1').classList.add('loaded');
+        document.getElementById('st1').textContent = '✓ '+file.name+' — '+n+' 家廠商';
+      } else if (type==='q') {
+        S.qc = parseIssue(wb);
+        const n = Object.keys(S.qc).length;
+        document.getElementById('uc2').classList.add('loaded');
+        document.getElementById('st2').textContent = '✓ '+file.name+' — '+n+' 家廠商';
+      } else {
+        const list = parseT20(wb);
+        if (list.length) {
+          S.t20 = list;
+          list.forEach(v=>{ if(!(v in S.coop)) S.coop[v]=9; });
+        }
+        document.getElementById('uc3').classList.add('loaded');
+        document.getElementById('st3').textContent = '✓ '+file.name+' — '+S.t20.length+' 家';
+      }
+      renderCoop();
+    } catch(err) { alert('解析失敗：'+err.message); }
+  };
+  r.readAsArrayBuffer(file);
+}
+
+// ─── Excel parsers ─────────────────────────────────────────────────────────────
+// parseIssue：支援多 sheet（如訂單、製令），同一廠商跨 sheet 累計計數
+function parseIssue(wb) {
+  const res = {};
+  for (const sn of wb.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], {header:1, defval:null});
+    let hi=-1, vc=-1, cc=-1;
+    for (let i=0; i<rows.length; i++) {
+      const s = (rows[i]||[]).map(c=>c==null?'':String(c));
+      if ((s.includes('廠商')||s.includes('列標籤')) && s.some(x=>x.includes('計數'))) {
+        hi=i; vc=s.findIndex(x=>x==='廠商'||x==='列標籤'); cc=s.findIndex(x=>x.includes('計數')); break;
+      }
+    }
+    if (hi<0) continue;
+    for (let i=hi+1; i<rows.length; i++) {
+      const r=rows[i]||[], v=r[vc], c=r[cc];
+      if (!v||String(v)==='總計') continue;
+      if (typeof c==='number'&&c>0) {
+        const key=String(v).trim();
+        res[key]=(res[key]||0)+c;
+      }
+    }
+  }
+  return res;
+}
+
+function parseT20(wb) {
+  const res=[];
+  for (const sn of wb.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], {header:1, defval:null});
+    let hi=-1, rc=-1, vc=-1;
+    for (let i=0; i<rows.length; i++) {
+      const s=(rows[i]||[]).map(c=>c==null?'':String(c));
+      if (s.includes('排名')&&s.includes('廠商')) { hi=i; rc=s.indexOf('排名'); vc=s.indexOf('廠商'); break; }
+    }
+    if (hi<0) continue;
+    for (let i=hi+1; i<rows.length; i++) {
+      const r=rows[i]||[], rk=r[rc], vd=r[vc];
+      if (rk==null||vd==null) continue;
+      const rn=Number(rk);
+      if (!isNaN(rn)&&rn>=1&&rn<=20) res.push({r:rn,v:String(vd).trim()});
+    }
+    if (res.length) break;
+  }
+  res.sort((a,b)=>a.r-b.r);
+  return res.slice(0,20).map(x=>x.v);
+}
+
+// ─── Fuzzy match ───────────────────────────────────────────────────────────────
+function norm(s){ return s.replace(/[（）()]/g,'').replace(/\s/g,'').toLowerCase(); }
+function findCount(data, v) {
+  if (v in data) return data[v];
+  const nv=norm(v);
+  for (const [k,c] of Object.entries(data)) {
+    if (norm(k)===nv) return c;
+  }
+  return 0;
+}
+
+// ─── Config helpers ────────────────────────────────────────────────────────────
+function cfg() {
+  return {qb:+document.getElementById('cqb').value||60, qd:+document.getElementById('cqd').value||5,
+          db:+document.getElementById('cdb').value||30, dd:+document.getElementById('cdd').value||2};
+}
+function onCC() {
+  if (document.getElementById('results').style.display!=='none') gen();
+}
+function coopVal(v) {
+  const inp = document.querySelector('.ci input[data-v="'+CSS.escape(v)+'"]');
+  return inp ? (+inp.value||0) : (S.coop[v]||9);
+}
+
+// ─── Render cooperation grid ───────────────────────────────────────────────────
+function renderCoop() {
+  // 配合度設定只顯示「交易前20名」的廠商
+  const all = [...S.t20];
+  document.getElementById('cgrid').innerHTML = all.map(v=>`
+    <div class="ci">
+      <span title="${v}">${v}</span>
+      <input type="number" min="0" max="10" value="${S.coop[v]||9}" data-v="${v}" oninput="onCC()">
+    </div>`).join('');
+}
+
+// ─── Score calculator ──────────────────────────────────────────────────────────
+function calc(v) {
+  const c=cfg(), q=findCount(S.qc,v), d=findCount(S.dc,v);
+  const quality=Math.max(0,c.qb-q*c.qd), delivery=Math.max(0,c.db-d*c.dd), coop=coopVal(v);
+  const total=quality+delivery+coop;
+  const grade=total>=90?'A':total>=70?'B':total>=60?'C':'D';
+  const notes=[(q?`品異*${q}`:''),(d?`逾期*${d}`:'')].filter(Boolean).join('．');
+  return {quality,delivery,coop,total,grade,notes,q,d};
+}
+
+// ─── Row builder ───────────────────────────────────────────────────────────────
+function mkRow(rank, vendor, sc) {
+  const tr=document.createElement('tr');
+  if (sc.notes) tr.className='hi';
+  tr.innerHTML=`
+    <td class="ed" contenteditable="true">${rank}</td>
+    <td class="ed" contenteditable="true" style="text-align:left;padding-left:5px">${vendor}</td>
+    <td class="ed${sc.q?' slow':''}" contenteditable="true" data-c="q" oninput="rcalc(this)">${sc.quality}</td>
+    <td class="ed${sc.d?' slow':''}" contenteditable="true" data-c="d" oninput="rcalc(this)">${sc.delivery}</td>
+    <td class="ed" contenteditable="true" data-c="c" oninput="rcalc(this)">${sc.coop}</td>
+    <td class="totcol" data-c="tot">${sc.total}</td>
+    <td class="${sc.grade==='A'?'ga':''}" data-c="gA">${sc.grade==='A'?'A':''}</td>
+    <td class="${sc.grade==='B'?'gb':''}" data-c="gB">${sc.grade==='B'?'B':''}</td>
+    <td class="${sc.grade==='C'?'gc':''}" data-c="gC">${sc.grade==='C'?'C':''}</td>
+    <td class="${sc.grade==='D'?'gd':''}" data-c="gD">${sc.grade==='D'?'D':''}</td>
+    <td class="ed nc" contenteditable="true">${sc.notes}</td>
+    <td class="hdr-print-hide" style="white-space:nowrap;padding:2px 4px">
+      <button class="editbtn" onclick="openModal(this.closest('tr'))" title="修改此列">✏</button>
+      <button class="delbtn" onclick="this.closest('tr').remove()" title="刪除此列">✕</button>
+    </td>`;
+  return tr;
+}
+
+// ─── Recalculate row ───────────────────────────────────────────────────────────
+function rcalc(cell) {
+  const tr=cell.closest('tr');
+  const q=+tr.querySelector('[data-c="q"]').textContent||0;
+  const d=+tr.querySelector('[data-c="d"]').textContent||0;
+  const c=+tr.querySelector('[data-c="c"]').textContent||0;
+  const tot=q+d+c;
+  const g=tot>=90?'A':tot>=70?'B':tot>=60?'C':'D';
+  tr.querySelector('[data-c="tot"]').textContent=tot;
+  ['A','B','C','D'].forEach(x=>{
+    const td=tr.querySelector('[data-c="g'+x+'"]');
+    td.textContent=g===x?x:'';
+    td.className=g===x?({A:'ga',B:'gb',C:'gc',D:'gd'}[x]):'';
+  });
+}
+
+// ─── Add row ───────────────────────────────────────────────────────────────────
+function addRow(tbid) {
+  const tb=document.getElementById(tbid);
+  const rmk=tb.querySelector('.rmkrow');
+  if(rmk) tb.removeChild(rmk);
+  const c=cfg(), coop=9, quality=c.qb, delivery=c.db;
+  tb.appendChild(mkRow(tb.querySelectorAll('tr:not(.rmkrow)').length+1,'新廠商',{quality,delivery,coop,total:quality+delivery+coop,grade:'A',notes:'',q:0,d:0}));
+  if(rmk) tb.appendChild(rmk);
+}
+
+// ─── Generate report ───────────────────────────────────────────────────────────
+function gen() {
+  const c=cfg();
+  const rmkTxt=`說　明　1. 品質：${c.qb}－(品質異常單件數×${c.qd})　　交期：${c.db}－(逾期次數×${c.dd})\n　　　　2. 等級：A：90(含)分以上　B：90－70分(含)　C：70－60分(含)　D：60分以下`;
+
+  // Top 20
+  const tb1=document.getElementById('tb1');
+  tb1.innerHTML='';
+  S.t20.forEach((v,i)=>{
+    tb1.appendChild(mkRow(i+1, v, calc(v)));
+  });
+  const r1=document.createElement('tr'); r1.className='rmkrow';
+  r1.innerHTML=`<td colspan="12" style="white-space:pre-line">${rmkTxt}</td>`; tb1.appendChild(r1);
+
+  // Extra vendors (with issues but not top20) — 用精確 norm 比對，避免誤判
+  const allIssue=[...new Set([...Object.keys(S.qc),...Object.keys(S.dc)])];
+  const extras=allIssue.filter(v=>{
+    const nv=norm(v);
+    return !S.t20.some(t=>norm(t)===nv);
+  });
+
+  const tb2=document.getElementById('tb2');
+  tb2.innerHTML='';
+  if (extras.length) {
+    document.getElementById('exsec').style.display='';
+    extras.forEach((v,i)=>tb2.appendChild(mkRow(i+1, v, calc(v))));
+    const r2=document.createElement('tr'); r2.className='rmkrow';
+    r2.innerHTML=`<td colspan="12" style="white-space:pre-line">${rmkTxt}</td>`; tb2.appendChild(r2);
+  } else {
+    document.getElementById('exsec').style.display='none';
+  }
+
+  document.getElementById('results').style.display='';
+  document.getElementById('results').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// ─── Export HTML ───────────────────────────────────────────────────────────────
+function exportHTML() {
+  const c=cfg();
+  const cleanTable = id => {
+    const clone=document.getElementById(id).cloneNode(true);
+    clone.querySelectorAll('.hdr-print-hide').forEach(el=>el.remove());
+    clone.querySelectorAll('[contenteditable]').forEach(el=>el.removeAttribute('contenteditable'));
+    return clone.outerHTML;
+  };
+  const exSec = document.getElementById('exsec').style.display!=='none'
+    ? `<h3 style="font-size:13px;margin:18px 0 8px;border-left:3px solid #2e6fad;padding-left:8px">非前20名，但有品異及交期逾期</h3>${cleanTable('t2')}`
+    : '';
+  const html=`<!DOCTYPE html>
+<html lang="zh-TW"><head><meta charset="UTF-8"><title>2025年度供應商考核表</title><style>
+body{font-family:"Microsoft JhengHei",Arial,sans-serif;padding:30px 40px;font-size:13px;max-width:1000px;margin:0 auto}
+h1{text-align:center;font-size:20px;font-weight:bold;letter-spacing:5px;margin-bottom:10px}
+.sh{display:flex;justify-content:space-between;font-size:12px;margin-bottom:16px}
+h3{font-size:13px;margin:18px 0 8px;border-left:3px solid #2e6fad;padding-left:8px}
+table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:8px}
+th,td{border:1px solid #aaa;text-align:center;padding:4px 5px;vertical-align:middle}
+thead th{background:#dce7f3;font-weight:500;font-size:11px}
+tbody tr:nth-child(odd) td{background:#fff}tbody tr:nth-child(even) td{background:#f9fbff}
+tr.hi td{background:#fffbe0 !important}
+.rmkrow td{text-align:left;padding:7px 10px;font-size:11px;color:#555;background:#f4f8fd !important;line-height:1.65;white-space:pre-line}
+.ga{color:#0a6e0a;font-weight:500}.gb{color:#b97a00;font-weight:500}.gc{color:#cc5200;font-weight:500}.gd{color:#b30000;font-weight:500}
+.nc{text-align:left;font-size:11px;color:#555;padding-left:5px}.totcol{font-weight:500}
+.slow{color:#c0392b}.sig{display:flex;justify-content:space-between;font-size:12px;margin-top:24px;padding-top:14px;border-top:1px solid #ccc}
+</style></head><body>
+<h1>供 應 商 考 核 表</h1>
+<div class="sh"><span>考核年度：<strong>2025年度</strong></span><span>2026年1月5日</span></div>
+<h3>交易前 20 名供應商考核</h3>
+${cleanTable('t1')}
+${exSec}
+<div class="sig"><span>核　准：＿＿＿＿＿＿＿＿＿</span><span>製　表：＿＿＿＿＿＿＿＿＿</span></div>
+</body></html>`;
+  const blob=new Blob([html],{type:'text/html;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download='2025年度供應考核表_匯出.html'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),2000);
+}
+
+// ─── Export Word (.docx) ───────────────────────────────────────────────────────
+async function exportWord() {
+  if (typeof docx === 'undefined') {
+    alert('docx 函式庫尚未載入，請稍後再試或確認網路連線。'); return;
+  }
+  const {
+    Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+    AlignmentType, BorderStyle, WidthType, VerticalAlign, ShadingType,
+    Footer, Header, PageOrientation
+  } = docx;
+
+  const c = cfg();
+  const today = new Date();
+  const dateStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
+  const yearStr = `${today.getFullYear()-1}`;
+
+  // 讀取前20名 tbody 資料列
+  function readRows(tbodyId) {
+    const rows = [];
+    document.getElementById(tbodyId).querySelectorAll('tr:not(.rmkrow)').forEach(tr => {
+      rows.push({
+        rank:   tr.cells[0].textContent.trim(),
+        vendor: tr.cells[1].textContent.trim(),
+        q:      tr.querySelector('[data-c="q"]').textContent.trim(),
+        d:      tr.querySelector('[data-c="d"]').textContent.trim(),
+        co:     tr.querySelector('[data-c="c"]').textContent.trim(),
+        tot:    tr.querySelector('[data-c="tot"]').textContent.trim(),
+        grade:  ['A','B','C','D'].find(g => tr.querySelector('[data-c="g'+g+'"]').textContent.trim()===g) || '',
+        note:   tr.querySelector('.nc').textContent.trim()
+      });
+    });
+    return rows;
+  }
+
+  const border = { style: BorderStyle.SINGLE, size: 4, color: 'auto' };
+  const borders = { top: border, bottom: border, left: border, right: border };
+  const font = '標楷體';
+  const sz = 20; // 10pt → val=20
+  const szHd = 28; // 14pt header
+
+  function cell(text, opts={}) {
+    const { w=685, bold=false, span=1, vMerge=null, center=true, bg=null, sz: cellSz=sz } = opts;
+    const tcPr = { borders, width: { size: w, type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER };
+    if (span > 1) tcPr.columnSpan = span;
+    if (vMerge) tcPr.rowSpan = vMerge; // handled via vMerge below
+    const shading = bg ? { fill: bg, type: ShadingType.CLEAR } : undefined;
+    if (shading) tcPr.shading = shading;
+    return new TableCell({
+      ...tcPr,
+      margins: { top: 60, bottom: 60, left: 80, right: 80 },
+      children: [new Paragraph({
+        alignment: center ? AlignmentType.CENTER : AlignmentType.LEFT,
+        children: [new TextRun({ text, font, size: cellSz, bold })]
+      })]
+    });
+  }
+
+  // Column widths matching original: 685,911,1080,1080,1440,900,508,509,509,509,1404
+  const colW = [685, 911, 1080, 1080, 1440, 900, 508, 509, 509, 509, 1404];
+  const totalW = colW.reduce((a,b)=>a+b,0); // 9535
+
+  function makeDataRow(r) {
+    return new TableRow({
+      height: { value: 320, rule: 'atLeast' },
+      children: [
+        cell(r.rank,   { w: colW[0] }),
+        cell(r.vendor, { w: colW[1], center: false }),
+        cell(r.q,      { w: colW[2] }),
+        cell(r.d,      { w: colW[3] }),
+        cell(r.co,     { w: colW[4] }),
+        cell(r.tot,    { w: colW[5], bold: true }),
+        cell(r.grade==='A'?'A':'', { w: colW[6] }),
+        cell(r.grade==='B'?'B':'', { w: colW[7] }),
+        cell(r.grade==='C'?'C':'', { w: colW[8] }),
+        cell(r.grade==='D'?'D':'', { w: colW[9] }),
+        cell(r.note,   { w: colW[10], center: false }),
+      ]
+    });
+  }
+
+  const rmkText = `說 明  1.品質：${c.qb}－(品質異常單件數×${c.qd})    交期：${c.db}－(逾期次數×${c.dd})\n        2.等級：A：90(含)分以上   B：90-70分(含)   C：70-60分(含)   D：60分以下`;
+
+  function remarkRow() {
+    return new TableRow({
+      children: [
+        new TableCell({
+          borders, columnSpan: 1,
+          width: { size: colW[0], type: WidthType.DXA },
+          margins: { top: 60, bottom: 60, left: 80, right: 80 },
+          verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '說 明', font, size: sz })] })]
+        }),
+        new TableCell({
+          borders, columnSpan: 10,
+          width: { size: totalW - colW[0], type: WidthType.DXA },
+          margins: { top: 60, bottom: 60, left: 120, right: 80 },
+          verticalAlign: VerticalAlign.CENTER,
+          children: [
+            new Paragraph({ children: [new TextRun({ text: `1.品質：${c.qb}－(品質異常單件數×${c.qd})    交期：${c.db}－(逾期次數×${c.dd})`, font, size: sz })] }),
+            new Paragraph({ children: [new TextRun({ text: `2.等級：A：90(含)分以上   B：90-70分(含)   C：70-60分(含)   D：60分以下`, font, size: sz })] }),
+          ]
+        })
+      ]
+    });
+  }
+
+  // Header row 1
+  const headerRow1 = new TableRow({
+    height: { value: 380, rule: 'atLeast' },
+    children: [
+      new TableCell({ borders, width: { size: colW[0], type: WidthType.DXA }, rowSpan: 2, verticalAlign: VerticalAlign.CENTER,
+        margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '序號', font, size: szHd, bold: true })] })] }),
+      new TableCell({ borders, width: { size: colW[1], type: WidthType.DXA }, rowSpan: 2, verticalAlign: VerticalAlign.CENTER,
+        margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '廠 商', font, size: szHd, bold: true })] })] }),
+      new TableCell({ borders, columnSpan: 3, width: { size: colW[2]+colW[3]+colW[4], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
+        margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '考  核  項  目', font, size: szHd, bold: true })] })] }),
+      new TableCell({ borders, width: { size: colW[5], type: WidthType.DXA }, rowSpan: 2, verticalAlign: VerticalAlign.CENTER,
+        margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '總分', font, size: szHd, bold: true })] })] }),
+      new TableCell({ borders, columnSpan: 4, width: { size: colW[6]+colW[7]+colW[8]+colW[9], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
+        margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '考核等級', font, size: szHd, bold: true })] })] }),
+      new TableCell({ borders, width: { size: colW[10], type: WidthType.DXA }, rowSpan: 2, verticalAlign: VerticalAlign.CENTER,
+        margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '備  註', font, size: szHd, bold: true })] })] }),
+    ]
+  });
+
+  const headerRow2 = new TableRow({
+    height: { value: 340, rule: 'atLeast' },
+    children: [
+      new TableCell({ borders, width: { size: colW[2], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
+        margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `品質${c.qb}`, font, size: sz })] })] }),
+      new TableCell({ borders, width: { size: colW[3], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
+        margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `交期${c.db}`, font, size: sz })] })] }),
+      new TableCell({ borders, width: { size: colW[4], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
+        margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: '配合度10', font, size: sz })] })] }),
+      new TableCell({ borders, width: { size: colW[6], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
+        margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'A', font, size: sz })] })] }),
+      new TableCell({ borders, width: { size: colW[7], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
+        margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'B', font, size: sz })] })] }),
+      new TableCell({ borders, width: { size: colW[8], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
+        margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'C', font, size: sz })] })] }),
+      new TableCell({ borders, width: { size: colW[9], type: WidthType.DXA }, verticalAlign: VerticalAlign.CENTER,
+        margins: { top: 60, bottom: 60, left: 80, right: 80 },
+        children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'D', font, size: sz })] })] }),
+    ]
+  });
+
+  const t20rows = readRows('tb1');
+
+  const tableRows = [headerRow1, headerRow2, ...t20rows.map(makeDataRow), remarkRow()];
+
+  const doc = new Document({
+    sections: [{
+      properties: {
+        page: {
+          size: { width: 11906, height: 16838 },
+          margin: { top: 1418, right: 1134, bottom: 1418, left: 1134 }
+        }
+      },
+      footers: {
+        default: new Footer({
+          children: [new Paragraph({
+            alignment: AlignmentType.LEFT,
+            children: [
+              new TextRun({ text: '表單編號：4-MF-20', font, size: 16 }),
+              new TextRun({ text: '                                                                        ', font, size: 16 }),
+              new TextRun({ text: '編表日期：2024.4.1', font, size: 16 }),
+            ]
+          })]
+        })
+      },
+      children: [
+        // 標題
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [new TextRun({ text: '供 應 商 考 核 表', font, size: 36, bold: true })]
+        }),
+        // 年度列
+        new Paragraph({
+          children: [
+            new TextRun({ text: `考核年度：${yearStr}年度`, font, size: 24 }),
+            new TextRun({ text: '                                    ', font, size: 24 }),
+            new TextRun({ text: dateStr, font, size: 24 }),
+          ]
+        }),
+        // 主表
+        new Table({
+          width: { size: totalW, type: WidthType.DXA },
+          columnWidths: colW,
+          rows: tableRows
+        }),
+        // 簽名列
+        new Paragraph({ spacing: { before: 240 },
+          children: [
+            new TextRun({ text: '核准：', font, size: 24 }),
+            new TextRun({ text: '                    ', font, size: 24 }),
+            new TextRun({ text: '                                        ', font, size: 24 }),
+            new TextRun({ text: '製表：', font, size: 24 }),
+          ]
+        }),
+      ]
+    }]
+  });
+
+  try {
+    const blob = await Packer.toBlob(doc);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `${yearStr}年度供應商考核表.docx`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+  } catch(e) {
+    alert('Word 匯出失敗：' + e.message);
+    console.error(e);
+  }
+}
+
+// ─── Edit Modal ────────────────────────────────────────────────────────────────
+let _editTr = null;
+
+function openModal(tr) {
+  _editTr = tr;
+  const c = cfg();
+  document.getElementById('m_qmax').textContent = c.qb;
+  document.getElementById('m_dmax').textContent = c.db;
+  document.getElementById('m_rank').value    = tr.cells[0].textContent.trim();
+  document.getElementById('m_vendor').value  = tr.cells[1].textContent.trim();
+  document.getElementById('m_q').value       = tr.querySelector('[data-c="q"]').textContent.trim();
+  document.getElementById('m_q').max         = c.qb;
+  document.getElementById('m_d').value       = tr.querySelector('[data-c="d"]').textContent.trim();
+  document.getElementById('m_d').max         = c.db;
+  document.getElementById('m_c').value       = tr.querySelector('[data-c="c"]').textContent.trim();
+  document.getElementById('m_note').value    = tr.querySelector('[data-c="tot"]') ? tr.querySelector('.nc').textContent.trim() : '';
+  mCalc();
+  document.getElementById('editModal').classList.add('open');
+}
+
+function mCalc() {
+  const q=+document.getElementById('m_q').value||0;
+  const d=+document.getElementById('m_d').value||0;
+  const c=+document.getElementById('m_c').value||0;
+  const tot=q+d+c;
+  const g=tot>=90?'A':tot>=70?'B':tot>=60?'C':'D';
+  document.getElementById('m_tot').textContent=tot;
+  document.getElementById('m_grade').textContent=g;
+  const gc={A:'#0a6e0a',B:'#b97a00',C:'#cc5200',D:'#b30000'};
+  document.getElementById('m_grade').style.color=gc[g];
+}
+
+function applyModal() {
+  if (!_editTr) return;
+  const q=+document.getElementById('m_q').value||0;
+  const d=+document.getElementById('m_d').value||0;
+  const c=+document.getElementById('m_c').value||0;
+  const tot=q+d+c;
+  const g=tot>=90?'A':tot>=70?'B':tot>=60?'C':'D';
+  const gc={A:'ga',B:'gb',C:'gc',D:'gd'};
+
+  _editTr.cells[0].textContent = document.getElementById('m_rank').value;
+  _editTr.cells[1].textContent = document.getElementById('m_vendor').value;
+  _editTr.querySelector('[data-c="q"]').textContent = q;
+  _editTr.querySelector('[data-c="d"]').textContent = d;
+  _editTr.querySelector('[data-c="c"]').textContent = c;
+  _editTr.querySelector('[data-c="tot"]').textContent = tot;
+  ['A','B','C','D'].forEach(x=>{
+    const td=_editTr.querySelector('[data-c="g'+x+'"]');
+    td.textContent=g===x?x:'';
+    td.className=g===x?gc[x]:'';
+  });
+  _editTr.querySelector('.nc').textContent = document.getElementById('m_note').value;
+  // highlight row if has notes
+  const note=document.getElementById('m_note').value.trim();
+  _editTr.className = note ? 'hi' : '';
+  closeModal();
+}
+
+function closeModal() {
+  document.getElementById('editModal').classList.remove('open');
+  _editTr = null;
+}
+// Close on overlay click
+document.getElementById('editModal').addEventListener('click', function(e){
+  if(e.target===this) closeModal();
+});
+
+// ─── Init ──────────────────────────────────────────────────────────────────────
+renderCoop();
+// Auto-generate on load with pre-loaded data
+window.addEventListener('DOMContentLoaded', ()=>{ setTimeout(gen, 100); });
+</script>
+</body>
+</html>
